@@ -1,0 +1,12 @@
+{
+    0:(ent_id: 1,prop_name: "prop1",value: {
+        "key": "value"
+    },index:(1,
+    "prop1")),
+    1:(ent_id: 1,prop_name: "prop2",value: "v2",index:(1,
+    "prop2")),
+    2:(ent_id: 2,prop_name: "prop1",value: "v3",index:(2,
+    "prop1")),
+    3:(ent_id: 2,prop_name: "prop2",value: "v4",index:(2,
+    "prop2"))
+}

@@ -117,12 +117,12 @@ impl Database{
     /// TODO MultiIndexMap支持序列化后则使用原生序列化
     pub fn save(&self, path: &Path) -> Result<(), Error>{
 
-
         let s = self.atoms._store.clone();
         if let Ok(data) = ron::to_string(&s){
             let file = fs::OpenOptions::new()
                 .write(true)
                 .create(true)
+                .truncate(true)
                 .open(path)?;
             file.seek_write(data.as_bytes(), 0).expect("写文件时出错");
             Ok(())
@@ -137,11 +137,15 @@ impl Database{
             .read(true)
             .open(path)?;
 
-        if let Ok(data) = bincode::deserialize_from::<File, Slab<Atom>>(f){
-            let _ = data;
-            todo!()
+
+        if let Ok(data) = ron::de::from_reader::<File, Slab<Atom>>(f){
+            let mut rtn = Self::new();
+            for (_, atom) in data.iter(){
+                rtn.insert_atom(atom.clone())?;
+            }
+            Ok(rtn)
         }else{
-            return Err(Error::DeserializeError(&"解码数据时出错"))
+            Err(Error::DeserializeError(&"解码数据时出错"))
         }
 
     }

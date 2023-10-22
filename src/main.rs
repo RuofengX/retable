@@ -1,5 +1,4 @@
 pub mod db;
-mod system;
 
 
 fn main() {
@@ -7,6 +6,8 @@ fn main() {
 }
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use crate::db::{Database, Atom};
     use bson::{Bson, doc};
 
@@ -47,6 +48,15 @@ mod tests {
         let updated_atom = database.update(1, "prop1".to_string(), new_prop.clone());
         assert_eq!(updated_atom, Some(&atom1));
         assert_eq!(atom1.value, new_prop);
+
+        // 测试save方法
+        let path = Path::new("./save.ron");
+        assert!(database.save(path).is_ok());
+
+        // 测试load方法
+        let database_ng = Database::load(path).unwrap();
+        assert_eq!(database_ng.get(1, "prop1".to_string()).unwrap(), &atom1);
+
     }
 }
 
