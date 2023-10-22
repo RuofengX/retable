@@ -1,5 +1,5 @@
 [package]
-description = "一个Atomic-like的数据结构"
+description = "一个Atomic-like的双索引<实体-属性>数据结构"
 edition = "2021"
 license = "MIT"
 name = "retable"
