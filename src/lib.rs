@@ -1,9 +1,6 @@
-pub mod db;
+mod db;
+pub use db::Database;
 
-
-fn main() {
-    println!("Hello, world!");
-}
 #[cfg(test)]
 mod tests {
     use std::path::Path;
