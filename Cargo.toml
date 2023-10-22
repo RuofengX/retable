@@ -1,12 +1,16 @@
 [package]
+description = "一个Atomic-like的数据结构"
+edition = "2021"
+license = "MIT"
 name = "retable"
 version = "0.1.0"
-edition = "2021"
-description = "一个Atomic-like的数据结构"
-license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bincode = "1.3.3"
 bson = "2.7.0"
 multi_index_map = "0.9.0"
+ron = "0.8.1"
+serde = {version = "1.0.189", features = ["derive"]}
+slab = { version = "0.4.9", features = ["serde"] }

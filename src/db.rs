@@ -1,9 +1,12 @@
-use std::{hash, error, fmt};
+use std::{fs::{self, File}, hash, error, fmt, path::Path, io, os::windows::prelude::FileExt};
 
+use slab::Slab;
 use multi_index_map::MultiIndexMap;
 use bson::Bson;
+use serde::{Serialize, Deserialize};
 
 #[derive(MultiIndexMap, Clone, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Atom{
     // 实体ID
     #[multi_index(ordered_non_unique)]
@@ -13,7 +16,7 @@ pub struct Atom{
     #[multi_index(hashed_non_unique)]
     pub prop_name: String,
 
-    /// 属性值
+    // 属性值
     pub value: Bson,
 
     // 根据实体ID和属性计算出的索引
@@ -38,6 +41,7 @@ impl Atom{
 
 // Atom的索引
 #[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize)]
 pub struct AtomIndex(u32, String);
 impl Eq for AtomIndex{}
 impl PartialEq for AtomIndex{
@@ -108,11 +112,52 @@ impl Database{
             }
         )
     }
+
+    /// 将文件保存到本地
+    /// TODO MultiIndexMap支持序列化后则使用原生序列化
+    pub fn save(&self, path: &Path) -> Result<(), Error>{
+
+
+        let s = self.atoms._store.clone();
+        if let Ok(data) = ron::to_string(&s){
+            let file = fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(path)?;
+            file.seek_write(data.as_bytes(), 0).expect("写文件时出错");
+            Ok(())
+        } else {
+            Err(Error::SerializeError("序列化数据时出现错误"))
+        }
+    }
+
+    /// 从本地读取文件
+    pub fn load(path: &Path) -> Result<Self, Error>{
+        let f = fs::OpenOptions::new()
+            .read(true)
+            .open(path)?;
+
+        if let Ok(data) = bincode::deserialize_from::<File, Slab<Atom>>(f){
+            let _ = data;
+            todo!()
+        }else{
+            return Err(Error::DeserializeError(&"解码数据时出错"))
+        }
+
+    }
 }
 
 #[derive(Debug)]
 pub enum Error{
     IndexAlreadyExist(&'static str),
+    IOError(&'static str),
+    SerializeError(&'static str),
+    DeserializeError(&'static str),
+}
+impl From<io::Error> for Error{
+    fn from(_value: io::Error) -> Self {
+        Self::IOError(&"输入/输出错误")
+    }
 }
 impl fmt::Display for Error{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
