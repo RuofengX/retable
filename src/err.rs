@@ -3,6 +3,7 @@ use std::{io, fmt, error};
 
 #[derive(Debug)]
 pub enum Error{
+    DuplicateKey(&'static str),
     IndexAlreadyExist(&'static str),
     IOError(&'static str),
     SerializeError(&'static str),
