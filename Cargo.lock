@@ -320,7 +320,7 @@ dependencies = [
  "multi_index_map",
  "ron",
  "serde",
- "slab",
+ "shared_slab",
 ]
 
 [[package]]
@@ -389,13 +389,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "shared_slab"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adf59077cb5e0782fc62a1e09f1686a742cd0207ef49b9f1b31a1316561dfe14"
+
+[[package]]
 name = "slab"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
- "serde",
 ]
 
 [[package]]

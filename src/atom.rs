@@ -3,7 +3,7 @@ use std::sync::RwLock;
 use serde::{Serialize, Deserialize};
 
 /// 实体的ID
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct EID(u64);
 impl EID{
     pub fn new(eid:u64) -> Self{
@@ -12,7 +12,7 @@ impl EID{
 }
 
 /// Atom记录的ID
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct AID(usize);
 impl AID{
     pub fn new(id:usize) -> Self{

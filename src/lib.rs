@@ -1,7 +1,6 @@
-mod db;
-mod two_key;
 pub mod err;
 pub mod atom;
+mod nested_index;
 pub use db::Database;
 
 #[cfg(test)]
