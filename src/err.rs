@@ -3,11 +3,12 @@ use std::{io, fmt, error};
 
 #[derive(Debug)]
 pub enum Error{
-    DuplicateKey(&'static str),
-    IndexAlreadyExist(&'static str),
     IOError(&'static str),
     SerializeError(&'static str),
     DeserializeError(&'static str),
+    DuplicateKey(&'static str),
+    KeyError(&'static str),
+    ShardNotUseable(&'static str),
 }
 impl From<io::Error> for Error{
     fn from(_value: io::Error) -> Self {
