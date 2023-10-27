@@ -1,21 +1,24 @@
 use std::{sync::RwLock, collections::HashMap};
 
-use crate::err::Error;
-use shared_slab::Slab;
+use crate::{err::Error, atom::PropValue};
+use sharded_slab::{Slab, Entry};
 
-use crate::atom::{PropValue, EID};
+use crate::atom::EID;
 
-struct PropPool{
-    pool: Slab<RwLock<PropValue>>,
+pub struct IndexSlab{
+    pool: Slab<PropValue>,
     index: RwLock<HashMap<EID, usize>>,
 }
-impl PropPool{
+impl IndexSlab{
+    /// new
+    pub fn new() -> Self{
+        Self { pool: Slab::new(), index: RwLock::new(HashMap::new()) }
+    }
     /// 获取某一实体的属性
-    pub fn get(&self, eid: EID) -> Option<&RwLock<PropValue>>{
+    pub fn get(&self, eid: EID) -> Option<Entry<PropValue>>{
         let index = self.index.read().unwrap();
         if let Some(uid) = index.get(&eid){
-            let rtx = self.pool;
-            return self.pool.get(*uid)
+            self.pool.get(*uid)
         } else {
             None
         }
@@ -27,7 +30,8 @@ impl PropPool{
         if index.contains_key(&eid){
             return Err(Error::KeyError("尝试插入一个已存在的实体索引"))
         } else{
-            if let Some(_) = index.insert(eid, self.pool.insert(RwLock::new(value))){
+            if let Some(aid) = self.pool.insert(value){
+                index.insert(eid, aid);
                 Ok(())
             }
             else{
@@ -38,69 +42,85 @@ impl PropPool{
 
     /// 删除某一属性, lazy_remove
     pub fn remove(&self, eid: EID) -> Result<(), Error>{
-        let value: Option<usize>;
-        {
-            let mut wtx = self.index.read().unwrap();
-            let id = wtx.remove(&eid);
-        }
-            if let Some(id) = value{
-                self.pool.remove(id).unwrap();
+        let mut wtx = self.index.write().unwrap();
+        let value = wtx.remove(&eid);
+        if let Some(id) = value{
+            if self.pool.remove(id){
                 Ok(())
             } else {
-                Err(Error::KeyError("尝试删除了一个不存在的实体编号"))
+                Err(Error::KeyError("尝试删除了一个已被（其他线程）删除实体编号"))
             }
+        } else {
+            Err(Error::KeyError("尝试删除了一个不存在的实体编号"))
+        }
     } 
 }
 
 #[cfg(test)]
-mod benchmarks {
+mod tests {
+    use std::{sync::Arc, time::Duration};
+
     use super::*;
-    use shared_slab::Slab;
+    use crate::atom::PropValue;
+    
+    #[test]
+    fn test_index_slad() {
 
-    #[bench]
-    fn bench_insert(b: &mut Bencher) {
-        let prop_pool = PropPool {
+        let slad: IndexSlab = IndexSlab {
             pool: Slab::new(),
             index: RwLock::new(HashMap::new()),
         };
-
-        b.iter(|| {
-            let eid = 1;
-            let value = PropValue::new();
-            prop_pool.insert(eid, value).unwrap();
-        });
+        
+        // Test insert and get
+        slad.insert(EID(1), PropValue::Int(1024)).unwrap();
+        assert_eq!(*slad.get(EID(1)).unwrap(), PropValue::Int(1024));
+        
+        // Test insert duplicate key error
+        let result = slad.insert(EID(1), PropValue::Int(2048));
+        assert!(result.is_err());
+        
+        // Test remove
+        slad.remove(EID(1)).unwrap();
+        assert!(slad.get(EID(1)).is_none());
+        
+        // Test remove non-existent key error
+        let result = slad.remove(EID(1));
+        assert!(result.is_err());
     }
-
-    #[bench]
-    fn bench_get(b: &mut Bencher) {
-        let prop_pool = PropPool {
+    
+    #[test]
+    fn test_index_slad_concurrent() {
+        use std::thread;
+        
+        const THREADS: u64 = 64;
+        
+        let slab = Arc::new(IndexSlab {
             pool: Slab::new(),
             index: RwLock::new(HashMap::new()),
-        };
-
-        let eid = 1;
-        let value = PropValue::new();
-        prop_pool.insert(eid, value).unwrap();
-
-        b.iter(|| {
-            let prop = prop_pool.get(eid);
-            assert!(prop.is_some());
         });
-    }
-
-    #[bench]
-    fn bench_remove(b: &mut Bencher) {
-        let prop_pool = PropPool {
-            pool: Slab::new(),
-            index: RwLock::new(HashMap::new()),
-        };
-
-        let eid = 1;
-        let value = PropValue::new();
-        prop_pool.insert(eid, value).unwrap();
-
-        b.iter(|| {
-            prop_pool.remove(eid).unwrap();
-        });
+        
+        let handles: Vec<_> = (0..THREADS).map(|i| -> thread::JoinHandle<()> {
+            // println!("{}", i);
+            let slab_clone = Arc::clone(&slab);
+            thread::spawn(move ||{
+                let _ = slab_clone.insert(EID(i), PropValue::UInt(i));
+                assert_eq!(*slab_clone.get(EID(i)).unwrap(), PropValue::UInt(i));
+                thread::sleep(Duration::new(1,0));
+                if i > 0{
+                    assert_eq!(*slab_clone.get(EID(i-1)).unwrap(), PropValue::UInt(i-1));
+                }
+                thread::sleep(Duration::new(1,0));
+                slab_clone.remove(EID(i)).unwrap();
+                thread::sleep(Duration::new(1,0));
+                if i > 1{
+                    assert!(slab_clone.get(EID(i-1)).is_none());
+                }
+                assert!(slab_clone.get(EID(i)).is_none());
+            })}
+        ).collect();
+        
+        for handle in handles {
+            handle.join().unwrap();
+        }
     }
 }

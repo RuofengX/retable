@@ -1,10 +1,10 @@
-use std::sync::RwLock;
+use std::{sync::RwLock};
 
 use serde::{Serialize, Deserialize};
 
 /// 实体的ID
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct EID(u64);
+pub struct EID(pub u64);
 impl EID{
     pub fn new(eid:u64) -> Self{
         Self(eid)
@@ -13,14 +13,14 @@ impl EID{
 
 /// Atom记录的ID
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct AID(usize);
+pub struct AID(pub usize);
 impl AID{
     pub fn new(id:usize) -> Self{
         Self(id)
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum PropName{
     Grid,
     Pos,
@@ -42,12 +42,14 @@ impl From<&str> for PropName{
 /// 属性值
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd)]
 pub enum PropValue{
-    Str(String),
     Vec([f64;3]),
     IntVec([i64;3]),
     Int(i64),
     UInt(u64),
-    Document(Box<PropValue>),
+    Entity(EID),
+    Entities(Vec<EID>),
+    Str(String),
+    List(Vec<Box<PropValue>>),
     #[default]
     None,
 }
@@ -62,6 +64,7 @@ pub struct Atom{
     // 属性值
     pub prop_value: PropValue,
 }
+
 /// 有状态的数据条目
 /// 一个Atom代表数据库中的一条
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -77,7 +80,7 @@ impl PartialEq for StateAtom{
     }
 }
 impl StateAtom{
-    fn new(id: AID, ent_id: EID, prop_name: PropName, prop_value: PropValue) -> Self{
+    pub fn new(id: AID, ent_id: EID, prop_name: PropName, prop_value: PropValue) -> Self{
         StateAtom{
             id,
             raw_atom: RwLock::new(Atom{
