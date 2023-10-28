@@ -24,6 +24,7 @@ impl AID{
 pub enum PropName{
     Grid,
     Pos,
+    Infomation,
     DataLoss,
     #[default]
     None,

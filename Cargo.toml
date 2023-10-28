@@ -18,5 +18,6 @@ sharded-slab = "0.1.1"
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [[bench]]
-name = "benchmark"
+# name = "benchmark"
+name = "bench_props"
 harness = false

@@ -1,14 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use retable::{nested_index::PropValueSlab, atom::{EID, PropValue}};
 
-fn fibonacci(n: u64) -> u64 {
-    match n {
-        0 => 1,
-        1 => 1,
-        n => fibonacci(n-1) + fibonacci(n-2),
-    }
-}
-
 fn many_insert(n: u64) -> (){
     let slab: PropValueSlab = PropValueSlab::new();
     
@@ -48,7 +40,6 @@ fn many_insert_update(n: u64) -> (){
     }
 }
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("fib 20", |b| b.iter(|| fibonacci(black_box(20))));
     c.bench_function("many_insert 10000", |b| b.iter(|| many_insert(black_box(10000))));
     c.bench_function("many_insert_get 10000", |b| b.iter(|| many_insert_get(black_box(10000))));
     c.bench_function("many_insert_drop 10000", |b| b.iter(|| many_insert_drop(black_box(10000))));

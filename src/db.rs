@@ -27,6 +27,7 @@ impl Props{
     }
 
     /// 库中不存在该入口 - 插入一个实体属性值 - 不存在则None
+    /// 性能弱于set
     //  TODO:分片满时可能panic
     pub fn insert(&mut self, eid: EID, key:PropName, value: PropValue) -> Option<()> {
         self.0.entry(key).or_insert(PropValueSlab::new()).insert(eid, value)
@@ -43,6 +44,7 @@ impl Props{
     }
 
     /// 库中存在该入口 - 更新一个实体属性值 - 不存在则None
+    /// 性能弱于set
     pub fn update(&mut self, eid:EID, key:PropName, value: PropValue) -> Option<()> {
         // 判断是否存在属性
         if let Some(prop_slab) = self.0.get(&key){
