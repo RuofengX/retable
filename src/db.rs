@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::RwLock};
 
-use crate::{nested_index::PropValueSlab, atom::{PropName, PropValue, EID}};
+use crate::{prop_slab::PropValueSlab, atom::{PropName, PropValue, EID}};
 
 pub struct Props(HashMap<PropName, PropValueSlab>);
 impl Props{
