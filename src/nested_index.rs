@@ -1,15 +1,15 @@
 use std::{sync::RwLock, collections::HashMap};
 
-use crate::{err::Error, atom::PropValue};
+use crate:: atom::PropValue;
 use sharded_slab::{Slab, Entry};
 
 use crate::atom::EID;
 
-pub struct IndexSlab{
+pub struct PropValueSlab{
     pool: Slab<RwLock<PropValue>>,
     index: RwLock<HashMap<EID, usize>>,
 }
-impl IndexSlab{
+impl PropValueSlab{
     /// new
     pub fn new() -> Self{
         Self { pool: Slab::new(), index: RwLock::new(HashMap::new()) }
@@ -26,33 +26,37 @@ impl IndexSlab{
     }
 
     /// 插入某一实体的属性
-    pub fn insert(&self, eid: EID, value: PropValue) -> Result<(), Error>{
+    pub fn insert(&self, eid: EID, value: PropValue) -> Option<()>{
         let mut index = self.index.write().unwrap();
         if index.contains_key(&eid){
-            return Err(Error::KeyError("尝试插入一个已存在的实体索引"))
+            // 已有值则不做修改
+            return None
         } else{
             if let Some(aid) = self.pool.insert(RwLock::new(value)){
                 index.insert(eid, aid);
-                Ok(())
+                Some(())
             }
             else{
-                Err(Error::ShardNotUseable("全局分片及当前线程分片已满，无法分配新属性槽"))
+                // Err(Error::ShardNotUseable("全局分片及当前线程分片已满，无法分配新属性槽")) //不是预料中的
+                panic!("全局分片及当前线程分片已满，无法分配新属性槽")
             }
         }
     }
 
     /// 删除某一属性, lazy_remove
-    pub fn remove(&self, eid: EID) -> Result<(), Error>{
+    pub fn remove(&self, eid: EID) -> Option<()>{
         let mut wtx = self.index.write().unwrap();
         let value = wtx.remove(&eid);
         if let Some(id) = value{
             if self.pool.remove(id){
-                Ok(())
+                Some(())
             } else {
-                Err(Error::KeyError("尝试删除了一个已被（其他线程）删除实体编号"))
+                // Err(Error::KeyError("尝试删除了一个已被（其他线程）删除实体编号"))
+                None
             }
         } else {
-            Err(Error::KeyError("尝试删除了一个不存在的实体编号"))
+            // Err(Error::KeyError("尝试删除了一个不存在的实体编号"))
+            None
         }
     } 
 }
@@ -67,7 +71,7 @@ mod tests {
     #[test]
     fn test_index_slab() {
 
-        let slab: IndexSlab = IndexSlab {
+        let slab: PropValueSlab = PropValueSlab {
             pool: Slab::new(),
             index: RwLock::new(HashMap::new()),
         };
@@ -78,7 +82,7 @@ mod tests {
         
         // Test insert duplicate key error
         let result = slab.insert(EID(1), PropValue::Int(2048));
-        assert!(result.is_err());
+        assert!(result.is_none());
         
         // Test remove
         slab.remove(EID(1)).unwrap();
@@ -86,7 +90,7 @@ mod tests {
         
         // Test remove non-existent key error
         let result = slab.remove(EID(1));
-        assert!(result.is_err());
+        assert!(result.is_none());
     }
     
     #[test]
@@ -95,7 +99,7 @@ mod tests {
         
         const THREADS: u64 = 64;
         
-        let slab = Arc::new(IndexSlab {
+        let slab = Arc::new(PropValueSlab {
             pool: Slab::new(),
             index: RwLock::new(HashMap::new()),
         });

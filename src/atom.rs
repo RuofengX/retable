@@ -20,7 +20,7 @@ impl AID{
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Eq, Ord, Hash, Clone, Copy)]
 pub enum PropName{
     Grid,
     Pos,
@@ -29,6 +29,7 @@ pub enum PropName{
     None,
     // TODO在这里添加新的属性枚举
 }
+/// 从字符串生成属性名
 impl From<&str> for PropName{
     fn from(value: &str) -> Self {
         match value{
@@ -40,7 +41,7 @@ impl From<&str> for PropName{
 }
 
 /// 属性值
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Clone)]
 pub enum PropValue{
     Vec([f64;3]),
     IntVec([i64;3]),

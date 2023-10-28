@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use retable::{nested_index::IndexSlab, atom::{EID, PropValue}};
+use retable::{nested_index::PropValueSlab, atom::{EID, PropValue}};
 
 fn fibonacci(n: u64) -> u64 {
     match n {
@@ -10,14 +10,14 @@ fn fibonacci(n: u64) -> u64 {
 }
 
 fn many_insert(n: u64) -> (){
-    let slab: IndexSlab = IndexSlab::new();
+    let slab: PropValueSlab = PropValueSlab::new();
     
     for i in 0..n{
         slab.insert(EID(i), PropValue::UInt(i)).unwrap();
     }
 }
 fn many_insert_get(n: u64) -> (){
-    let slab: IndexSlab = IndexSlab::new();
+    let slab: PropValueSlab = PropValueSlab::new();
     
     for i in 0..n{
         slab.insert(EID(i), PropValue::UInt(i)).unwrap();
@@ -27,7 +27,7 @@ fn many_insert_get(n: u64) -> (){
     }
 }
 fn many_insert_drop(n: u64) -> (){
-    let slab: IndexSlab = IndexSlab::new();
+    let slab: PropValueSlab = PropValueSlab::new();
     
     for i in 0..n{
         slab.insert(EID(i), PropValue::UInt(i)).unwrap();
@@ -37,7 +37,7 @@ fn many_insert_drop(n: u64) -> (){
     }
 }
 fn many_insert_update(n: u64) -> (){
-    let slab: IndexSlab = IndexSlab::new();
+    let slab: PropValueSlab = PropValueSlab::new();
     
     for i in 0..n{
         slab.insert(EID(i), PropValue::UInt(i)).unwrap();
