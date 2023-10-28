@@ -6,7 +6,7 @@ use sharded_slab::{Slab, Entry};
 use crate::atom::EID;
 
 pub struct IndexSlab{
-    pool: Slab<PropValue>,
+    pool: Slab<RwLock<PropValue>>,
     index: RwLock<HashMap<EID, usize>>,
 }
 impl IndexSlab{
@@ -14,8 +14,9 @@ impl IndexSlab{
     pub fn new() -> Self{
         Self { pool: Slab::new(), index: RwLock::new(HashMap::new()) }
     }
-    /// 获取某一实体的属性
-    pub fn get(&self, eid: EID) -> Option<Entry<PropValue>>{
+
+    /// 获取某一实体的属性，直接返回RwLock包装的值
+    pub fn get(&self, eid: EID) -> Option<Entry<RwLock<PropValue>>>{
         let index = self.index.read().unwrap();
         if let Some(uid) = index.get(&eid){
             self.pool.get(*uid)
@@ -30,7 +31,7 @@ impl IndexSlab{
         if index.contains_key(&eid){
             return Err(Error::KeyError("尝试插入一个已存在的实体索引"))
         } else{
-            if let Some(aid) = self.pool.insert(value){
+            if let Some(aid) = self.pool.insert(RwLock::new(value)){
                 index.insert(eid, aid);
                 Ok(())
             }
@@ -66,25 +67,25 @@ mod tests {
     #[test]
     fn test_index_slad() {
 
-        let slad: IndexSlab = IndexSlab {
+        let slab: IndexSlab = IndexSlab {
             pool: Slab::new(),
             index: RwLock::new(HashMap::new()),
         };
         
         // Test insert and get
-        slad.insert(EID(1), PropValue::Int(1024)).unwrap();
-        assert_eq!(*slad.get(EID(1)).unwrap(), PropValue::Int(1024));
+        slab.insert(EID(1), PropValue::Int(1024)).unwrap();
+        assert_eq!(*slab.get(EID(1)).unwrap().read().unwrap(), PropValue::Int(1024));
         
         // Test insert duplicate key error
-        let result = slad.insert(EID(1), PropValue::Int(2048));
+        let result = slab.insert(EID(1), PropValue::Int(2048));
         assert!(result.is_err());
         
         // Test remove
-        slad.remove(EID(1)).unwrap();
-        assert!(slad.get(EID(1)).is_none());
+        slab.remove(EID(1)).unwrap();
+        assert!(slab.get(EID(1)).is_none());
         
         // Test remove non-existent key error
-        let result = slad.remove(EID(1));
+        let result = slab.remove(EID(1));
         assert!(result.is_err());
     }
     
@@ -104,10 +105,10 @@ mod tests {
             let slab_clone = Arc::clone(&slab);
             thread::spawn(move ||{
                 let _ = slab_clone.insert(EID(i), PropValue::UInt(i));
-                assert_eq!(*slab_clone.get(EID(i)).unwrap(), PropValue::UInt(i));
+                assert_eq!(*slab_clone.get(EID(i)).unwrap().read().unwrap(), PropValue::UInt(i));
                 thread::sleep(Duration::new(1,0));
                 if i > 0{
-                    assert_eq!(*slab_clone.get(EID(i-1)).unwrap(), PropValue::UInt(i-1));
+                    assert_eq!(*slab_clone.get(EID(i-1)).unwrap().read().unwrap(), PropValue::UInt(i-1));
                 }
                 thread::sleep(Duration::new(1,0));
                 slab_clone.remove(EID(i)).unwrap();
