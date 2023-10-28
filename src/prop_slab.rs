@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::RwLock};
+use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
 
 use crate::atom::PropValue;
 use sharded_slab::{Entry, Slab};
@@ -7,20 +8,20 @@ use crate::atom::EID;
 
 pub struct PropValueSlab {
     pool: Slab<RwLock<PropValue>>,
-    index: RwLock<HashMap<EID, usize>>,
+    index: RwLock<FxHashMap<EID, usize>>,
 }
 impl PropValueSlab {
     /// new
     pub fn new() -> Self {
         Self {
             pool: Slab::new(),
-            index: RwLock::new(HashMap::new()),
+            index: RwLock::new(FxHashMap::default()),
         }
     }
 
     /// 获取某一实体的属性，直接返回RwLock包装的值
     pub fn get(&self, eid: EID) -> Option<Entry<RwLock<PropValue>>> {
-        let index = self.index.read().unwrap();
+        let index = self.index.read();
         if let Some(uid) = index.get(&eid) {
             self.pool.get(*uid)
         } else {
@@ -30,7 +31,7 @@ impl PropValueSlab {
 
     /// 插入某一实体的属性
     pub fn insert(&self, eid: EID, value: PropValue) -> Option<()> {
-        let mut index = self.index.write().unwrap();
+        let mut index = self.index.write();
         if index.contains_key(&eid) {
             // 已有值则不做修改
             return None;
@@ -47,7 +48,7 @@ impl PropValueSlab {
 
     /// 删除某一属性, lazy_remove
     pub fn remove(&self, eid: EID) -> Option<()> {
-        let mut wtx = self.index.write().unwrap();
+        let mut wtx = self.index.write();
         let value = wtx.remove(&eid);
         if let Some(id) = value {
             if self.pool.remove(id) {
@@ -74,13 +75,13 @@ mod tests {
     fn test_index_slab() {
         let slab: PropValueSlab = PropValueSlab {
             pool: Slab::new(),
-            index: RwLock::new(HashMap::new()),
+            index: RwLock::new(FxHashMap::default()),
         };
 
         // Test insert and get
         slab.insert(EID(1), PropValue::Int(1024)).unwrap();
         assert_eq!(
-            *slab.get(EID(1)).unwrap().read().unwrap(),
+            *slab.get(EID(1)).unwrap().read(),
             PropValue::Int(1024)
         );
 
@@ -105,7 +106,7 @@ mod tests {
 
         let slab = Arc::new(PropValueSlab {
             pool: Slab::new(),
-            index: RwLock::new(HashMap::new()),
+            index: RwLock::new(FxHashMap::default()),
         });
 
         let handles: Vec<_> = (0..THREADS)
@@ -115,13 +116,13 @@ mod tests {
                 thread::spawn(move || {
                     let _ = slab_clone.insert(EID(i), PropValue::UInt(i));
                     assert_eq!(
-                        *slab_clone.get(EID(i)).unwrap().read().unwrap(),
+                        *slab_clone.get(EID(i)).unwrap().read(),
                         PropValue::UInt(i)
                     );
                     thread::sleep(Duration::new(1, 0));
                     if i > 0 {
                         assert_eq!(
-                            *slab_clone.get(EID(i - 1)).unwrap().read().unwrap(),
+                            *slab_clone.get(EID(i - 1)).unwrap().read(),
                             PropValue::UInt(i - 1)
                         );
                     }

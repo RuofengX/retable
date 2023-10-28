@@ -1,5 +1,5 @@
 use rand::Rng;
-use std::sync::RwLock;
+use parking_lot::RwLock;
 
 use serde::{Deserialize, Serialize};
 

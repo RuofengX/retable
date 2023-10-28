@@ -1,14 +1,15 @@
-use std::{collections::HashMap, sync::RwLock};
+use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
 
 use crate::{
     atom::{PropName, PropValue, EID},
     prop_slab::PropValueSlab,
 };
 
-pub struct Props(HashMap<PropName, PropValueSlab>);
+pub struct Props(FxHashMap<PropName, PropValueSlab>);
 impl Props {
     pub fn new() -> Self {
-        Props { 0: HashMap::new() }
+        Props { 0: FxHashMap::default() }
     }
 }
 impl Props {
@@ -27,7 +28,7 @@ impl Props {
         // 尝试插入，如不存在则更新
         if let Some(prop_entry) = prop_slab.get(eid) {
             // 获取到了实体的属性入口
-            *prop_entry.write().unwrap() = value;
+            *prop_entry.write() = value;
             Some(())
         } else {
             // 实体在该属性上不存在
@@ -68,7 +69,7 @@ impl Props {
             // 判断是否存在实体
             if let Some(prop_entry) = prop_slab.get(eid) {
                 // 实体在该属性上存在
-                *prop_entry.write().unwrap() = value;
+                *prop_entry.write() = value;
                 Some(())
             } else {
                 // 实体在该属性上不存在
