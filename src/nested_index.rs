@@ -65,7 +65,7 @@ mod tests {
     use crate::atom::PropValue;
     
     #[test]
-    fn test_index_slad() {
+    fn test_index_slab() {
 
         let slab: IndexSlab = IndexSlab {
             pool: Slab::new(),
@@ -90,7 +90,7 @@ mod tests {
     }
     
     #[test]
-    fn test_index_slad_concurrent() {
+    fn test_index_slab_concurrent() {
         use std::thread;
         
         const THREADS: u64 = 64;
