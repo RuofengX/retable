@@ -1,20 +1,20 @@
-use parking_lot::RwLock;
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use rustc_hash::FxHashMap;
 
 use crate::{
     atom::{PropName, PropValue, EID},
-    prob_sp:: PropValueSp, PropStorage,
+    PropStorage,
 };
 
 pub struct Props<T>(FxHashMap<PropName, T>)
 where T: PropStorage;
 
-impl Props<PropValueSp> {
+impl <T: PropStorage>Props<T> {
     pub fn new() -> Self {
         Props { 0: FxHashMap::default() }
     }
 }
-impl Props<PropValueSp> {
+impl<T: PropStorage> Props<T> {
     /// 无条件 - 覆盖设置一个实体属性值，等价于insert + update - 不存在则None
     pub fn set(
         &mut self,
@@ -23,7 +23,7 @@ impl Props<PropValueSp> {
         value: crate::atom::PropValue,
     ) -> Option<()> {
         // 获取该属性的IndexSlab入口
-        let inner_prop = self.0.entry(key).or_insert(PropValueSp::new());
+        let inner_prop = self.0.entry(key).or_insert(T::default());
 
         // 尝试插入，如不存在则更新
         if let Some(prop_entry) = inner_prop.get(eid) {
@@ -37,11 +37,10 @@ impl Props<PropValueSp> {
     }
 
     /// 库中不存在该入口 - 插入一个实体属性值 - 不存在则None
-    /// 性能弱
     pub fn insert(&mut self, eid: EID, key: PropName, value: PropValue) -> Option<()> {
         self.0
             .entry(key)
-            .or_insert(PropValueSp::new())
+            .or_insert(T::default())
             .insert(eid, value)
     }
 
@@ -50,9 +49,31 @@ impl Props<PropValueSp> {
         &self,
         eid: EID,
         key: PropName,
-    ) -> Option<&RwLock<PropValue>> {
-        if let Some((_, prop_slab)) = self.0.get_key_value(&key) {
-            return prop_slab.get(eid)
+    ) -> Option<RwLockReadGuard<PropValue>> {
+        if let Some((_, inner_prop)) = self.0.get_key_value(&key) {
+            if let Some(prop) = inner_prop.get(eid){
+                return Some(prop.read())
+            }else{
+                None
+            }
+        } else {
+            // 不存在该属性，也不会改变原字典
+            None
+        }
+    }
+
+    /// 库中存在该入口 - 获取一个实体属性值 - 不存在则None
+    pub fn get_mut(
+        &mut self,
+        eid: EID,
+        key: PropName,
+    ) -> Option<RwLockWriteGuard<PropValue>> {
+        if let Some((_, inner_prop)) = self.0.get_key_value(&key) {
+            if let Some(prop) = inner_prop.get(eid){
+                return Some(prop.write())
+            }else{
+                None
+            }
         } else {
             // 不存在该属性，也不会改变原字典
             None
@@ -91,5 +112,15 @@ impl Props<PropValueSp> {
             // 该属性不存在
             None
         }
+    }
+
+    /// 获取某一属性的底层存储
+    pub fn get_prop(&self, key: PropName) -> Option<&T>{
+        self.0.get(&key)
+    }
+
+    /// 获取某一属性的底层存储的可变借用
+    pub fn get_prop_mut(&mut self, key: PropName) -> Option<&mut T>{
+        self.0.get_mut(&key)
     }
 }

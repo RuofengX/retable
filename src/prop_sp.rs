@@ -1,18 +1,14 @@
+use std::ops::DerefMut;
+
 use parking_lot::RwLock;
 use bimap::BiMap;
 
 use crate::{atom::{EID, PropValue}, PropStorage};
 
+#[derive(Default)]
 pub struct PropValueSp{
-    index: RwLock<BiMap<EID, usize>>,
+    index: RwLock<BiMap<EID, usize>>, //HACK: 使用稀疏Vec+有状态的value代替双射，牺牲一些N*usize空间换更快的速度减少两次哈希计算
     value: Vec<RwLock<PropValue>>,
-}
-
-impl PropValueSp{
-    pub fn new() -> Self{
-        Self { index: RwLock::new(BiMap::default()),
-            value: Vec::new() }
-    }
 }
 
 impl PropStorage for PropValueSp{
@@ -72,6 +68,13 @@ impl PropStorage for PropValueSp{
 
     }
 
+    fn tick<F>(&mut self, mut f: F)
+    where 
+        F: FnMut(&mut PropValue) -> () {
+            self.value.iter_mut()
+            .map(|value|value.write())
+            .for_each(|mut wtx|f(wtx.deref_mut()));
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -79,7 +82,7 @@ mod tests {
     
     #[test]
     fn test_prop_value_sp() {
-        let mut prop_value_sp = PropValueSp::new();
+        let mut prop_value_sp = PropValueSp::default();
         
         // Insert values
         assert_eq!(prop_value_sp.insert(EID(1), PropValue::Str("Value 1".to_string())), Some(()));

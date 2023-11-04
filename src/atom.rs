@@ -1,7 +1,8 @@
 use rand::Rng;
 use parking_lot::RwLock;
-
 use serde::{Deserialize, Serialize};
+
+use crate::scaler::Vector3;
 
 /// 实体的ID
 #[derive(
@@ -57,7 +58,7 @@ impl From<&str> for PropName {
 /// 属性值
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Clone)]
 pub enum PropValue {
-    Vec([f64; 3]),
+    Vec(Vector3),
     IntVec([i64; 3]),
     Int(i64),
     UInt(u64),
