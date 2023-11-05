@@ -1,126 +1,122 @@
-use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 
 use crate::{
-    atom::{PropName, PropValue, EID},
+    atom::{PropName, PropValue, EID, EntityProp},
     PropStorage,
 };
 
-pub struct Props<T>(FxHashMap<PropName, T>)
-where T: PropStorage;
+pub struct Props<T>
+where T: PropStorage{
+    data: FxHashMap<PropName, T>,
+    len: RwLock<usize>,
+}
 
 impl <T: PropStorage>Props<T> {
     pub fn new() -> Self {
-        Props { 0: FxHashMap::default() }
+        Props { data: FxHashMap::default(), len:RwLock::new(0) }
     }
 }
 impl<T: PropStorage> Props<T> {
-    /// 无条件 - 覆盖设置一个实体属性值，等价于insert + update - 不存在则None
-    pub fn set(
-        &mut self,
-        eid: crate::atom::EID,
-        key: PropName,
-        value: crate::atom::PropValue,
-    ) -> Option<()> {
-        // 获取该属性的IndexSlab入口
-        let inner_prop = self.0.entry(key).or_insert(T::default());
+    /// 获取某一属性的底层存储
+    pub fn get_prop(&self, key: &PropName) -> Option<&T>{
+        self.data.get(&key)
+    }
 
-        // 尝试插入，如不存在则更新
-        if let Some(prop_entry) = inner_prop.get(eid) {
-            // 获取到了实体的属性入口
-            *prop_entry.write() = value;
+    /// 获取某一属性的底层存储的可变借用
+    pub fn get_prop_mut(&mut self, key: &PropName) -> Option<&mut T>{
+        self.data.get_mut(&key)
+    }
+
+    /// 列举出所有属性
+    pub fn list_props(&self)-> &FxHashMap<PropName, T>{
+        &self.data
+    }
+
+    /// 添加属性
+    pub fn add_prop(&mut self, name: PropName, prop: T) -> Option<()>{
+        if self.data.insert(name, prop).is_none(){
             Some(())
         } else {
-            // 实体在该属性上不存在
-            inner_prop.insert(eid, value) // 直接返回
-        }
-    }
-
-    /// 库中不存在该入口 - 插入一个实体属性值 - 不存在则None
-    pub fn insert(&mut self, eid: EID, key: PropName, value: PropValue) -> Option<()> {
-        self.0
-            .entry(key)
-            .or_insert(T::default())
-            .insert(eid, value)
-    }
-
-    /// 库中存在该入口 - 获取一个实体属性值 - 不存在则None
-    pub fn get(
-        &self,
-        eid: EID,
-        key: PropName,
-    ) -> Option<RwLockReadGuard<PropValue>> {
-        if let Some((_, inner_prop)) = self.0.get_key_value(&key) {
-            if let Some(prop) = inner_prop.get(eid){
-                return Some(prop.read())
-            }else{
-                None
-            }
-        } else {
-            // 不存在该属性，也不会改变原字典
             None
         }
     }
 
-    /// 库中存在该入口 - 获取一个实体属性值 - 不存在则None
-    pub fn get_mut(
-        &mut self,
+    /// 库中存在该入口 - 从给定的prop里获取一个实体属性值 - 不存在则None
+    pub fn get<'a>(
+        &'a self,
         eid: EID,
-        key: PropName,
-    ) -> Option<RwLockWriteGuard<PropValue>> {
-        if let Some((_, inner_prop)) = self.0.get_key_value(&key) {
-            if let Some(prop) = inner_prop.get(eid){
-                return Some(prop.write())
-            }else{
-                None
-            }
+        key: &PropName,
+    ) -> Option<&'a RwLock<PropValue>> {
+        let rtx = self.len.read();
+        if eid.0 >= *rtx{
+            // 超过最大限制
+            return None
+        }
+        // 没超过最大限制，获取不到就是None
+        if let Some(prop) = self.data.get(key){
+            prop.get(eid)
         } else {
-            // 不存在该属性，也不会改变原字典
             None
         }
     }
+
+    /// 创建一个实体
+    pub fn spawn(&mut self, props: EntityProp) -> EID {
+        let mut wtx = self.len.write();
+        let new_eid = EID(*wtx);
+        *wtx += 1;
+
+        for (key, value) in props{
+            self.data
+                .entry(key)
+                .or_insert(T::default())
+                .append(new_eid, value);
+        }
+        new_eid
+    }
+
 
     /// 库中存在该入口 - 更新一个实体属性值 - 不存在则None
     /// 使用的是修改读写锁内的数据，而不是创建新的入口，复用了锁的功能，实现了线程安全
     pub fn update(&mut self, eid: EID, key: PropName, value: PropValue) -> Option<()> {
-        // 判断是否存在属性
-        if let Some(prop_slab) = self.0.get(&key) {
-            // 属性存在
-
-            // 判断是否存在实体
-            if let Some(prop_entry) = prop_slab.get(eid) {
-                // 实体在该属性上存在
-                *prop_entry.write() = value;
-                Some(())
-            } else {
-                // 实体在该属性上不存在
-                None
+        {
+            let rtx = self.len.write();
+            if eid.0 >= *rtx{
+                return None
             }
+        }
+
+        // 判断是否存在属性
+        if let Some(inner_prop) = self.data.get(&key) {
+            // 属性存在
+            // 判断是否存在实体
+            let prop_entry = inner_prop.get(eid).unwrap();
+            // 实体在该属性上存在
+            let mut wtx = prop_entry.write();
+            *wtx = value;
+            Some(())
         } else {
-            // 该属性不存在
+            // 实体在该属性上不存在
             None
         }
     }
 
-    /// 库中存在该入口 - 删除一个实体属性值，如不存在则返回None
-    pub fn drop(&mut self, eid: EID, key: PropName) -> Option<()> {
+    pub fn remove(&mut self, eid:EID, key: PropName) -> Option<()>{
+        let wtx = self.len.write();
+        if eid.0 >= *wtx{
+            return None
+        }
         // 判断是否存在属性
-        if let Some(inner_prop) = self.0.get_mut(&key) {
-            // 属性存在，删除id对应记录
+        if let Some(inner_prop) = self.data.get_mut(&key) {
+            //属性存在
             inner_prop.remove(eid)
         } else {
-            // 该属性不存在
+            // 实体在该属性上不存在
             None
         }
+
+
     }
 
-    /// 获取某一属性的底层存储
-    pub fn get_prop(&self, key: PropName) -> Option<&T>{
-        self.0.get(&key)
-    }
-
-    /// 获取某一属性的底层存储的可变借用
-    pub fn get_prop_mut(&mut self, key: PropName) -> Option<&mut T>{
-        self.0.get_mut(&key)
-    }
 }

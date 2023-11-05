@@ -1,5 +1,5 @@
 use rand::Rng;
-use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::scaler::Vector3;
@@ -8,16 +8,19 @@ use crate::scaler::Vector3;
 #[derive(
     Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord, Hash,
 )]
-pub struct EID(pub u64);
+pub struct EID(pub usize);
 impl EID {
-    pub fn new(eid: u64) -> Self {
+    pub fn new(eid: usize) -> Self {
         Self(eid)
     }
     pub fn rand(mut rng: impl Rng) -> Self {
         Self(rng.gen())
     }
-    pub fn range(i: u64) -> impl Iterator<Item = EID> {
+    pub fn range(i: usize) -> impl Iterator<Item = EID> {
         (0..i).map(|i| Self(i))
+    }
+    pub fn next(&self) -> EID{
+        EID(self.0 + 1)
     }
 }
 
@@ -70,40 +73,24 @@ pub enum PropValue {
     None,
 }
 
-/// 无状态的数据
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Atom {
     // 实体ID
-    pub ent_id: EID,
+    pub eid: EID,
+    pub raw_atom: RawAtom,
+}
+impl PartialEq for  Atom{
+    fn eq(&self, other: &Self) -> bool {
+        self.eid == other.eid
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct RawAtom{
     // 属性
     pub prop_name: PropName,
     // 属性值
     pub prop_value: PropValue,
 }
 
-/// 有状态的数据条目
-/// 一个Atom代表数据库中的一条
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct StateAtom {
-    // 记录ID，一个原子化的记录和一个Slab库绑定
-    pub id: AID,
-    // 无状态记录
-    pub raw_atom: RwLock<Atom>,
-}
-impl PartialEq for StateAtom {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-impl StateAtom {
-    pub fn new(id: AID, ent_id: EID, prop_name: PropName, prop_value: PropValue) -> Self {
-        StateAtom {
-            id,
-            raw_atom: RwLock::new(Atom {
-                ent_id,
-                prop_name,
-                prop_value,
-            }),
-        }
-    }
-}
+pub type EntityProp = FxHashMap<PropName, PropValue>;

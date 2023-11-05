@@ -12,8 +12,13 @@ pub use scaler::Vector3;
 use parking_lot::RwLock;
 
 pub trait PropStorage: Default{
-    fn insert(&mut self, eid: EID, value: PropValue) -> Option<()>;  // 不覆盖
+    // 为eid新增一个属性，eid永远是新增的
+    fn append(&mut self, eid:EID, value: PropValue) -> ();
+
+    // 获取eid的属性
     fn get(&self, eid: EID) -> Option<&RwLock<PropValue>>;
+
+    // 删除eid的属性
     fn remove(&mut self, eid: EID) -> Option<()>;
 
     // 对每个属性tick

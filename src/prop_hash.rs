@@ -8,25 +8,20 @@ use crate::{atom::{PropValue, EID}, PropStorage};
 #[derive(Default)]
 pub struct PropValueHash(FxHashMap<EID, RwLock<PropValue>>);
 impl PropStorage for PropValueHash{
-    fn insert(&mut self, eid: EID, value: PropValue) -> Option<()> {
-        if self.0.contains_key(&eid){
-            None
-        } else{
-            self.0.insert(eid, RwLock::new(value));
-            Some(())
-        }
-    }
 
     fn get(&self, eid: EID) -> Option<&RwLock<PropValue>> {
         self.0.get(&eid)
     }
 
+    fn append(&mut self, eid:EID, value: PropValue) -> (){
+        self.0.insert(eid, RwLock::new(value));
+    }
+
     fn remove(&mut self, eid: EID) -> Option<()> {
         if self.0.remove(&eid).is_some(){
-            Some(())
-        } else {
-            None
+            return Some(())
         }
+        None
     }
 
     fn tick<F>(&mut self, mut f: F)
@@ -36,6 +31,7 @@ impl PropStorage for PropValueHash{
             .map(|value|value.write())
             .for_each(|mut wtx|f(wtx.deref_mut()));
     }
+
 }
 
 #[cfg(test)]
@@ -47,16 +43,17 @@ mod tests {
         let mut prop_value_sp = PropValueHash::default();
         
         // Insert values
-        assert_eq!(prop_value_sp.insert(EID(1), PropValue::Str("Value 1".to_string())), Some(()));
-        assert_eq!(prop_value_sp.insert(EID(2), PropValue::Str("Value 2".to_string())), Some(()));
-        assert_eq!(prop_value_sp.insert(EID(3), PropValue::Str("Value 3".to_string())), Some(()));
-        assert_eq!(prop_value_sp.insert(EID(3), PropValue::Str("Value 3".to_string())), None);
+        assert_eq!(prop_value_sp.append(EID(1), PropValue::Str("Value 0".to_string())), ());
+        assert_eq!(prop_value_sp.append(EID(2), PropValue::Str("Value 1".to_string())), ());
+        assert_eq!(prop_value_sp.append(EID(3), PropValue::Str("Value 2".to_string())), ());
+        assert_eq!(prop_value_sp.append(EID(5), PropValue::Str("Value 5".to_string())), ());
         
         // Get values
-        assert_eq!(prop_value_sp.get(EID(1)).map(|v| v.read().clone()), Some(PropValue::Str("Value 1".to_string())));
-        assert_eq!(prop_value_sp.get(EID(2)).map(|v| v.read().clone()), Some(PropValue::Str("Value 2".to_string())));
-        assert_eq!(prop_value_sp.get(EID(3)).map(|v| v.read().clone()), Some(PropValue::Str("Value 3".to_string())));
+        assert_eq!(prop_value_sp.get(EID(1)).map(|v| v.read().clone()), Some(PropValue::Str("Value 0".to_string())));
+        assert_eq!(prop_value_sp.get(EID(2)).map(|v| v.read().clone()), Some(PropValue::Str("Value 1".to_string())));
+        assert_eq!(prop_value_sp.get(EID(3)).map(|v| v.read().clone()), Some(PropValue::Str("Value 2".to_string())));
         assert_eq!(prop_value_sp.get(EID(4)).map(|v| v.read().clone()), None);
+        assert_eq!(prop_value_sp.get(EID(5)).map(|v| v.read().clone()), Some(PropValue::Str("Value 5".to_string())));
         
         // Remove values
         assert_eq!(prop_value_sp.remove(EID(3)), Some(()));
