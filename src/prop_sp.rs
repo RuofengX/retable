@@ -16,7 +16,7 @@ impl StatePropValue{
 
 #[derive(Default)]
 pub struct PropValueSp{
-    index: RwLock<Vec<Option<usize>>>, //HACK: 使用稀疏Vec+有状态的value代替双射，牺牲一些N*usize空间换更快的速度减少两次哈希计算
+    index: RwLock<Vec<Option<usize>>>,
     value: Vec<StatePropValue>,
 }
 
@@ -39,8 +39,6 @@ impl PropStorage for PropValueSp{
         wtx.push(Some(self.value.len() - 1));
 
         assert_eq!(eid.0 + 1, wtx.len());
-
-        println!("{:?}", *wtx);
     }
 
 

@@ -8,7 +8,7 @@ use retable::db::Props;
 
 // use retable::{PropValueHash};
 // type I = PropValueHash; // 40%~160% faster than SparseSet, when indexing
-type I = PropValueSp; // 12% faster than FxHashMap, when calculate
+type I = PropValueSp; // 15%~20% faster than FxHashMap, when calculate a lot of data
 
 fn spawn_benchmark(c: &mut Criterion) {
     let mut props = Props::<I>::new();
@@ -17,7 +17,7 @@ fn spawn_benchmark(c: &mut Criterion) {
     let mut entity_prop = EntityProp::default();
     entity_prop.insert(key, value);
 
-    c.bench_function("insert", |b| {
+    c.bench_function("spawn", |b| {
         b.iter(|| {
             props.spawn(entity_prop.clone());
         })
@@ -73,7 +73,7 @@ fn remove_benchmark(c: &mut Criterion) {
     });
 }
 
-// 综合速度)
+// 综合速度
 fn generate_random_array(min: f64, max: f64) -> [f64;3] {
     let mut rng = rand::thread_rng();
     let mut array = [0.0;3];
@@ -87,7 +87,7 @@ fn generate_random_array(min: f64, max: f64) -> [f64;3] {
 
 fn parse_benchmark(c: &mut Criterion) {
     let mut props = Props::<I>::new();
-    (0..100000)
+    (0..1000000)
     .for_each(|_|{
         let key = PropName::Pos;
         let value = PropValue::Vec(generate_random_array(-1000000.0, 1000000.0).into());
@@ -96,7 +96,7 @@ fn parse_benchmark(c: &mut Criterion) {
         let _ = props.spawn(entity_prop);
     });
 
-    c.bench_function("综合测试", |b| {
+    c.bench_function("计算测试", |b| {
         b.iter(|| {
             props.get_prop_mut(&PropName::Pos).unwrap().tick(
                 |value: &mut PropValue| {
