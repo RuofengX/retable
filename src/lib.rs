@@ -23,7 +23,7 @@ pub trait PropStorage: Default + Serialize{
     fn remove(&mut self, eid: EID) -> Option<()>;
 
     // 对每个属性tick
-    fn tick<F>(&mut self, f: F)
+    fn tick<F>(&mut self, f: &mut F)
     where 
         F: FnMut(&mut PropValue) -> ();
 }

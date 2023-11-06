@@ -99,7 +99,7 @@ fn parse_benchmark(c: &mut Criterion) {
     c.bench_function("计算测试", |b| {
         b.iter(|| {
             props.get_prop_mut(&PropName::Pos).unwrap().tick(
-                |value: &mut PropValue| {
+                &mut |value: &mut PropValue| {
                     if let PropValue::Vec(pos) = value{
                         *pos = pos.add([1.0,2.0,3.0].into());
                     } else {
