@@ -25,7 +25,7 @@ impl PropStorage for PropValueHash{
         None
     }
 
-    fn tick<F>(&mut self, mut f: F)
+    fn tick<F>(&mut self, f: &mut F)
     where 
         F: FnMut(&mut PropValue) -> () {
             self.0.values_mut()

@@ -93,7 +93,7 @@ impl PropStorage for PropValueSp{
         }
     }
 
-    fn tick<F>(&mut self, mut f: F)
+    fn tick<F>(&mut self, f: &mut F)
     where F: FnMut(&mut PropValue) -> () {
         self.value.iter_mut()
         .for_each(|value|{
