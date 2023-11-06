@@ -3,7 +3,7 @@ description = "一个Atomic-like的双索引<实体-属性>数据结构"
 edition = "2021"
 license = "MIT"
 name = "retable"
-version = "0.4.1"
+version = "0.4.2"
 type = ["lib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -13,9 +13,10 @@ parking_lot = { version = "0.12.1", features = ["serde"] }
 rand = "0.8.5"
 rustc-hash = "1.1.0"
 serde = {version = "1.0.189", features = ["derive"]}
+#TODO: 使用RON进行序列化和反序列化
+ron = "0.8"
 # bimap = { version = "0.6.3", features = ["serde"] }
 # multi_index_map = "0.9.0"
-# ron = "0.8.1"
 # sharded-slab = "0.1.1"
 
 [dev-dependencies]

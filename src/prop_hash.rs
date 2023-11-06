@@ -2,10 +2,11 @@ use std::ops::DerefMut;
 
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 
 use crate::{atom::{PropValue, EID}, PropStorage};
 
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize)]
 pub struct PropValueHash(FxHashMap<EID, RwLock<PropValue>>);
 impl PropStorage for PropValueHash{
 

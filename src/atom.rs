@@ -2,7 +2,7 @@ use rand::Rng;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::scaler::Vector3;
+use crate::scaler::{Vector3, IntVector3};
 
 /// 实体的ID
 #[derive(
@@ -62,7 +62,7 @@ impl From<&str> for PropName {
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Clone)]
 pub enum PropValue {
     Vec(Vector3),
-    IntVec([i64; 3]),
+    IntVec(IntVector3),
     Int(i64),
     UInt(u64),
     Entity(EID),
@@ -70,7 +70,7 @@ pub enum PropValue {
     Str(String),
     List(Vec<Box<PropValue>>),
     #[default]
-    None,
+    Zero
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]

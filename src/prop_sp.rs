@@ -1,9 +1,11 @@
 use std::ops::DerefMut;
 
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
 use crate::{atom::{EID, PropValue}, PropStorage};
 
+#[derive(Default, Deserialize, Serialize)]
 struct StatePropValue{
     ioi: usize,  // index of this entry in PropValueSp.index
     data: RwLock<PropValue>,
@@ -14,7 +16,7 @@ impl StatePropValue{
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize)]
 pub struct PropValueSp{
     index: RwLock<Vec<Option<usize>>>,
     value: Vec<StatePropValue>,

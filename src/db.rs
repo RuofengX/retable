@@ -1,20 +1,37 @@
+use std::io::{Write, Read};
+
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
+use ron::{self, ser::PrettyConfig};
 
 use crate::{
     atom::{PropName, PropValue, EID, EntityProp},
     PropStorage,
 };
 
+#[derive(Default, Serialize)]
 pub struct Props<T>
 where T: PropStorage{
     data: FxHashMap<PropName, T>,
     len: RwLock<usize>,
 }
+impl <'de, T: PropStorage>Deserialize<'de> for Props<T>{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        todo!()
+    }
+}
 
 impl <T: PropStorage>Props<T> {
     pub fn new() -> Self {
         Props { data: FxHashMap::default(), len:RwLock::new(0) }
+    }
+    /// 从io中加载
+    pub fn load(reader: impl Read) -> Result<Self, ron::error::SpannedError>{
+        let data = ron::de::from_reader(reader)?;
+        Ok(data)
     }
 }
 impl<T: PropStorage> Props<T> {
@@ -102,6 +119,7 @@ impl<T: PropStorage> Props<T> {
         }
     }
 
+    /// 删除eid实体的key属性
     pub fn remove(&mut self, eid:EID, key: PropName) -> Option<()>{
         let wtx = self.len.write();
         if eid.0 >= *wtx{
@@ -117,6 +135,12 @@ impl<T: PropStorage> Props<T> {
         }
 
 
+    }
+
+    /// 保存至io中
+    pub fn save(&self, writer: impl Write) -> Result<(), ron::Error>{
+        let _rtx = self.len.read();
+        ron::ser::to_writer_pretty(writer, &self, PrettyConfig::default())
     }
 
 }
