@@ -153,11 +153,10 @@ mod tests {
         let mut props = Props::default();
 
         let mut ent_0_prop: FxHashMap<PropName, PropValue> = FxHashMap::default();
-        ent_0_prop.insert(PropName::Grid, PropValue::I64V(Vec3([0,1,2])));
+        ent_0_prop.insert(PropName::Grid, PropValue::I64V(Vec3([0, 1, 2])));
         let mut ent_2_prop: FxHashMap<PropName, PropValue> = FxHashMap::default();
-        ent_2_prop.insert(PropName::Grid, PropValue::I64V(Vec3([99999,99999,9999])));
-        ent_2_prop.insert(PropName::Pos, PropValue::F64V(Vec3([9990000000099.1;3])));
-
+        ent_2_prop.insert(PropName::Grid, PropValue::I64V(Vec3([99999, 99999, 9999])));
+        ent_2_prop.insert(PropName::Pos, PropValue::F64V(Vec3([9990000000099.1; 3])));
 
         // Test spawn
         assert_eq!(EID(0), props.spawn(ent_0_prop.clone()));
@@ -165,7 +164,7 @@ mod tests {
         assert_eq!(EID(2), props.spawn(ent_2_prop));
         let rtx = props.get(EID(0), &PropName::Grid).unwrap().read();
         let ent_0_grid = rtx.clone();
-        assert_eq!(ent_0_grid, PropValue::I64V(Vec3([0,1,2])));
+        assert_eq!(ent_0_grid, PropValue::I64V(Vec3([0, 1, 2])));
 
         // Test save
         use std::fs::OpenOptions;

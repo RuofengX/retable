@@ -61,8 +61,8 @@ impl From<&str> for PropName {
 /// 属性值
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Clone)]
 pub enum PropValue {
-    F64V(Vec3::<f64>),
-    I64V(Vec3::<i64>),
+    F64V(Vec3<f64>),
+    I64V(Vec3<i64>),
     I64(i64),
     U64(u64),
     EID(EID),
