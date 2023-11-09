@@ -106,7 +106,7 @@ impl From<Vec3<i64>> for Vec3<f64> {
     }
 }
 impl From<Vec3<usize>> for Vec3<f64> {
-    fn from(value: Vec3<i64>) -> Self {
+    fn from(value: Vec3<usize>) -> Self {
         let mut rtn = Vec3::<f64>([0.0; 3]);
         for i in 0..3 {
             rtn.0[i] = value.0[i] as f64;
