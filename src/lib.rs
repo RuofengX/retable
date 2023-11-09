@@ -8,11 +8,12 @@ pub use db::Props;
 pub use prop_sp::PropValueSp;
 pub use prop_hash::PropValueHash;
 pub use scaler::Vector3;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 use parking_lot::RwLock;
 
-pub trait PropStorage: Default + Serialize{
+/// prop存储方案必须要实现的特质
+pub trait PropStorage: Default + Serialize + for<'a>Deserialize<'a>{
     // 为eid新增一个属性，eid永远是新增的
     fn append(&mut self, eid:EID, value: PropValue) -> ();
 
@@ -26,4 +27,27 @@ pub trait PropStorage: Default + Serialize{
     fn tick<F>(&mut self, f: &mut F)
     where 
         F: FnMut(&mut PropValue) -> ();
+}
+
+/// 一个wrapper类型，指向了底层的PropValue的存储方案
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Prop(PropValueSp); 
+impl PropStorage for Prop{
+    fn append(&mut self, eid:EID, value: PropValue) -> () {
+        self.0.append(eid, value)
+    }
+
+    fn get(&self, eid: EID) -> Option<&RwLock<PropValue>> {
+        self.0.get(eid)
+    }
+
+    fn remove(&mut self, eid: EID) -> Option<()> {
+        self.0.remove(eid)
+    }
+
+    fn tick<F>(&mut self, f: &mut F)
+    where 
+        F: FnMut(&mut PropValue) -> () {
+            self.0.tick(f)
+    }
 }

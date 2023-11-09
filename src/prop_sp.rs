@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{atom::{EID, PropValue}, PropStorage};
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 struct StatePropValue{
     ioi: usize,  // index of this entry in PropValueSp.index
     data: RwLock<PropValue>,
@@ -16,7 +16,7 @@ impl StatePropValue{
     }
 }
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct PropValueSp{
     index: RwLock<Vec<Option<usize>>>,
     value: Vec<StatePropValue>,

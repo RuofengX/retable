@@ -6,7 +6,7 @@ use std::ops::{Add, Div, Mul, Sub};
 #[derive(Debug)]
 #[derive(PartialEq)]
 #[derive(PartialOrd)]
-pub struct IntVector3([i64; 3]);
+pub struct IntVector3(pub [i64; 3]);
 
 /// 四则运算
 impl Add<IntVector3> for IntVector3{

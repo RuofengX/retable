@@ -7,24 +7,16 @@ use ron::{self, ser::PrettyConfig};
 
 use crate::{
     atom::{PropName, PropValue, EID, EntityProp},
-    PropStorage,
+    Prop, PropStorage,
 };
 
-#[derive(Default, Serialize)]
-pub struct Props<T>
-where T: PropStorage{
-    data: FxHashMap<PropName, T>,
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Props{
+    data: FxHashMap<PropName, Prop>,
     len: RwLock<usize>,
 }
-impl <'de, T: PropStorage>Deserialize<'de> for Props<T>{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de> {
-        todo!()
-    }
-}
 
-impl <T: PropStorage>Props<T> {
+impl Props {
     pub fn new() -> Self {
         Props { data: FxHashMap::default(), len:RwLock::new(0) }
     }
@@ -34,24 +26,34 @@ impl <T: PropStorage>Props<T> {
         Ok(data)
     }
 }
-impl<T: PropStorage> Props<T> {
+impl Props {
+    /// 获取当前最大EID
+    pub fn max_eid(&self) -> EID{
+        let rtx = self.len.read();
+        EID(*rtx)
+    }
+    /// 获取下一个EID
+    pub fn next_eid(&self) -> EID{
+        let rtx = self.len.read();
+        EID(*rtx + 1)
+    }
     /// 获取某一属性的底层存储
-    pub fn get_prop(&self, key: &PropName) -> Option<&T>{
+    pub fn get_prop(&self, key: &PropName) -> Option<&Prop>{
         self.data.get(&key)
     }
 
     /// 获取某一属性的底层存储的可变借用
-    pub fn get_prop_mut(&mut self, key: &PropName) -> Option<&mut T>{
+    pub fn get_prop_mut(&mut self, key: &PropName) -> Option<&mut Prop>{
         self.data.get_mut(&key)
     }
 
     /// 列举出所有属性
-    pub fn list_props(&self)-> &FxHashMap<PropName, T>{
+    pub fn list_props(&self)-> &FxHashMap<PropName, Prop>{
         &self.data
     }
 
     /// 添加属性
-    pub fn add_prop(&mut self, name: PropName, prop: T) -> Option<()>{
+    pub fn add_prop(&mut self, name: PropName, prop: Prop) -> Option<()>{
         if self.data.insert(name, prop).is_none(){
             Some(())
         } else {
@@ -87,7 +89,7 @@ impl<T: PropStorage> Props<T> {
         for (key, value) in props{
             self.data
                 .entry(key)
-                .or_insert(T::default())
+                .or_insert(Prop::default())
                 .append(new_eid, value);
         }
         new_eid
@@ -144,3 +146,49 @@ impl<T: PropStorage> Props<T> {
     }
 
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::scaler::IntVector3;
+
+    use super::*;
+    
+    #[test]
+    fn test_prop_value_sp() {
+        let mut props = Props::default();
+
+        let mut ent_0_prop: FxHashMap<PropName, PropValue> = FxHashMap::default();
+        ent_0_prop.insert(
+            PropName::Grid,
+            PropValue::IntVec(IntVector3([0,0,0]))
+        );
+
+        // Test spawn
+        assert_eq!(EID(0), props.spawn(ent_0_prop.clone()));
+        assert_eq!(EID(1), props.spawn(FxHashMap::default()));
+        assert_eq!(EID(2), props.spawn(ent_0_prop));
+        let rtx = props.get(EID(0), &PropName::Grid).unwrap().read();
+        let ent_0_grid= rtx.clone();
+        assert_eq!(
+            ent_0_grid,
+            PropValue::IntVec(IntVector3([0;3]))
+        );
+
+        // Test save
+        use std::fs::OpenOptions;
+        let writer = OpenOptions::new().write(true).create(true).open(
+            "./save.ron"
+        ).unwrap();
+
+        props.save(writer).unwrap();
+
+        // Test load 
+        let reader = OpenOptions::new().read(true).open(
+            "./save.ron"
+        ).unwrap();
+        // assert_eq!(Props::load(reader).unwrap(), props); // 锁无法比较
+        dbg!(Props::load(reader).unwrap());
+
+    }
+}
+

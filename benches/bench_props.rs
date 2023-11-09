@@ -2,16 +2,16 @@ use std::ops::Add;
 
 use rand::{self, Rng};
 use criterion::{criterion_group, criterion_main, Criterion};
-use retable::{PropStorage, PropValueSp};
+use retable::PropStorage;
 use retable::atom::{PropName, PropValue, EID, EntityProp};
 use retable::db::Props;
 
 // use retable::{PropValueHash};
 // type I = PropValueHash; // 40%~160% faster than SparseSet, when indexing
-type I = PropValueSp; // 15%~20% faster than FxHashMap, when calculate a lot of data
+// type I = PropValueSp; // 15%~20% faster than FxHashMap, when calculate a lot of data
 
 fn spawn_benchmark(c: &mut Criterion) {
-    let mut props = Props::<I>::new();
+    let mut props = Props::new();
     let key = PropName::Infomation;
     let value = PropValue::Str("value".to_string());
     let mut entity_prop = EntityProp::default();
@@ -25,7 +25,7 @@ fn spawn_benchmark(c: &mut Criterion) {
 }
 
 fn get_benchmark(c: &mut Criterion) {
-    let mut props = Props::<I>::new();
+    let mut props = Props::new();
     let key = PropName::Infomation;
     let value = PropValue::Str("value".to_string());
     let mut entity_prop = EntityProp::default();
@@ -40,7 +40,7 @@ fn get_benchmark(c: &mut Criterion) {
 }
 
 fn update_benchmark(c: &mut Criterion) {
-    let mut props = Props::<I>::new();
+    let mut props = Props::new();
     let key = PropName::Infomation;
     let value = PropValue::Str("value".to_string());
 
@@ -58,7 +58,7 @@ fn update_benchmark(c: &mut Criterion) {
 }
 
 fn remove_benchmark(c: &mut Criterion) {
-    let mut props = Props::<I>::new();
+    let mut props = Props::new();
     let key = PropName::Infomation;
     let value = PropValue::Str("value".to_string());
     let mut entity_prop = EntityProp::default();
@@ -86,7 +86,7 @@ fn generate_random_array(min: f64, max: f64) -> [f64;3] {
 }
 
 fn parse_benchmark(c: &mut Criterion) {
-    let mut props = Props::<I>::new();
+    let mut props = Props::new();
     (0..1000000)
     .for_each(|_|{
         let key = PropName::Pos;
