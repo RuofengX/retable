@@ -2,7 +2,7 @@ use rand::Rng;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::scaler::{Vector3, IntVector3};
+use crate::scaler::Vec3;
 
 /// 实体的ID
 #[derive(
@@ -19,7 +19,7 @@ impl EID {
     pub fn range(i: usize) -> impl Iterator<Item = EID> {
         (0..i).map(|i| Self(i))
     }
-    pub fn next(&self) -> EID{
+    pub fn next(&self) -> EID {
         EID(self.0 + 1)
     }
 }
@@ -61,16 +61,16 @@ impl From<&str> for PropName {
 /// 属性值
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, PartialOrd, Clone)]
 pub enum PropValue {
-    Vec(Vector3),
-    IntVec(IntVector3),
-    Int(i64),
-    UInt(u64),
-    Entity(EID),
-    Entities(Vec<EID>),
+    F64V(Vec3::<f64>),
+    I64V(Vec3::<i64>),
+    I64(i64),
+    U64(u64),
+    EID(EID),
+    EIDV(Vec<EID>),
     Str(String),
     List(Vec<Box<PropValue>>),
     #[default]
-    Zero
+    Zero,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -79,14 +79,14 @@ pub struct Atom {
     pub eid: EID,
     pub raw_atom: RawAtom,
 }
-impl PartialEq for  Atom{
+impl PartialEq for Atom {
     fn eq(&self, other: &Self) -> bool {
         self.eid == other.eid
     }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct RawAtom{
+pub struct RawAtom {
     // 属性
     pub prop_name: PropName,
     // 属性值

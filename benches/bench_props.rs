@@ -1,10 +1,10 @@
 use std::ops::Add;
 
-use rand::{self, Rng};
 use criterion::{criterion_group, criterion_main, Criterion};
-use retable::PropStorage;
-use retable::atom::{PropName, PropValue, EID, EntityProp};
+use rand::{self, Rng};
+use retable::atom::{EntityProp, PropName, PropValue, EID};
 use retable::db::Props;
+use retable::PropStorage;
 
 // use retable::{PropValueHash};
 // type I = PropValueHash; // 40%~160% faster than SparseSet, when indexing
@@ -74,11 +74,11 @@ fn remove_benchmark(c: &mut Criterion) {
 }
 
 // 综合速度
-fn generate_random_array(min: f64, max: f64) -> [f64;3] {
+fn generate_random_array(min: f64, max: f64) -> [f64; 3] {
     let mut rng = rand::thread_rng();
-    let mut array = [0.0;3];
+    let mut array = [0.0; 3];
 
-    for i in 0..3{
+    for i in 0..3 {
         let random_number = rng.gen_range(min..=max);
         array[i] = random_number;
     }
@@ -87,10 +87,9 @@ fn generate_random_array(min: f64, max: f64) -> [f64;3] {
 
 fn parse_benchmark(c: &mut Criterion) {
     let mut props = Props::new();
-    (0..1000000)
-    .for_each(|_|{
+    (0..1000000).for_each(|_| {
         let key = PropName::Pos;
-        let value = PropValue::Vec(generate_random_array(-1000000.0, 1000000.0).into());
+        let value = PropValue::F64V(generate_random_array(-1000000.0, 1000000.0).into());
         let mut entity_prop = EntityProp::default();
         entity_prop.insert(key, value);
         let _ = props.spawn(entity_prop);
@@ -98,16 +97,16 @@ fn parse_benchmark(c: &mut Criterion) {
 
     c.bench_function("计算测试", |b| {
         b.iter(|| {
-            props.get_prop_mut(&PropName::Pos).unwrap().tick(
-                &mut |value: &mut PropValue| {
-                    if let PropValue::Vec(pos) = value{
-                        *pos = pos.add([1.0,2.0,3.0].into());
+            props
+                .get_prop_mut(&PropName::Pos)
+                .unwrap()
+                .tick(&mut |value: &mut PropValue| {
+                    if let PropValue::F64V(pos) = value {
+                        *pos = pos.add([1.0, 2.0, 3.0].into());
                     } else {
                         panic!("错误的类型")
                     }
-                    
-                }
-            );
+                });
         })
     });
 }

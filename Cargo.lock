@@ -496,6 +496,7 @@ name = "retable"
 version = "0.4.3"
 dependencies = [
  "criterion",
+ "num-traits",
  "parking_lot",
  "rand",
  "ron",
