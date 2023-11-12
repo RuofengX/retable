@@ -1,0 +1,101 @@
+
+/// 基本类型相关
+namespace Base;
+ 
+//基本类型相关
+/// 长度为1024字节的密码
+struct Secret{
+  value: [byte:1024];
+}
+
+/// float64的三维数组
+struct F64V{
+  x:float64;
+  y:float64;
+  z:float64;
+}
+
+/// i64的三维数组
+struct I64V{
+  x:int64;
+  y:int64;
+  z:int64;
+}
+
+/// Wrapper for float64
+struct F64{
+  value: float64;
+}
+
+/// Wrapper for u64
+struct U64{
+  value: uint64;
+}
+
+/// 实体ID
+struct EID{
+  value: uint64;
+}
+
+/// 存储层 
+namespace Storage;
+
+/// 以属性类型为索引的属性值
+union PropValue{
+  info: InfoSchema,
+  space: SpaceSchema,
+  newton: NewtonSchema
+  //TODO:记得在这里添加新的存储属性
+}
+
+/// 属性
+table AtomData{
+  value: PropValue;
+}
+root_type AtomData;
+
+/// 信息属性系统
+table InfoSchema{
+  name: string;
+  email: string;
+  password: Base.Secret;
+}
+
+/// 空间系统
+table SpaceSchema{
+  /// 所属网格
+  grid: Base.I64V;
+  /// 位置
+  pos: Base.F64V;
+  /// 速度
+  velo: Base.F64V;
+  /// 加速度
+  acc: Base.F64V;
+}
+
+/// 经典力学系统
+/// 通过向Space系统传递计算出的加速度（后重置forces）来达到力推动物体的效果
+table NewtonSchema{
+  /// 质量 
+  mass: Base.F64;
+  /// 受力
+  force: Base.F64V;
+}
+
+/// （数据）抽象层
+namespace Atom;
+
+/// Atom原子化的记录条目
+/// 大致如下：
+/// ```rs
+/// <----------ATOM-----------> Data-layer
+/// eid + prop_name + prop_value 
+///       <-----AtomData------> Storage-layer
+/// ```
+/// Atom记录在eid和prop_name上双索引
+/// 且prop_value在内存上连续
+table Atom{
+  eid: Base.EID;
+  value: Storage.AtomData;
+}
+root_type Atom;

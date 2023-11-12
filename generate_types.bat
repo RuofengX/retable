@@ -1,0 +1,1 @@
+flatc.exe -o ./src types.fbs --rust
