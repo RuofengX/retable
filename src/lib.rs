@@ -2,31 +2,26 @@ pub mod db;
 pub mod basic;
 pub mod atom;
 
-use basic::{Value, EID, Delta};
+use std::sync::Arc;
 
-use parking_lot::RwLock;
+use basic::{Value, EID, Delta};
 
 /// prop存储方案必须要实现的特质
 /// 对单一属性的存储方案的签名
 pub trait AtomStorage{
     // 为eid新增一个属性，eid永远是新增的
-    fn append(&mut self, eid: EID, prop:&str, value: Value) -> ();
+    fn set(&mut self, eid: EID, prop:&str, value: Value) -> ();
 
     // 获取eid的属性
-    fn get(&self, eid: EID, prop: &str) -> Option<&RwLock<Value>>;
+    fn get(&self, eid: EID, prop: &str) -> Option<Value>;
 
     // 删除eid的属性
     fn remove(&mut self, eid: EID, prop: &str) -> Option<()>;
 
-    // 对每个属性tick
-    fn tick<F>(&mut self, prop: &str, f: &mut F)
-    where
-        F: FnMut(&mut Value) -> ();
-    
     // 注册merge函数
-    fn register_merge<F>(&mut self, prop: &str, f: F)
+    fn register_merge<F>(&mut self, prop: &str, f: Arc<F>)
     where
-        F: FnMut(&EID, &Delta) -> ();
+        F: FnMut(EID, &Delta) -> ();
     
     // 使用merge函数合并属性
     fn merge(&mut self, prop: &str, eid: EID, delta: &Delta) -> ();
