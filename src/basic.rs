@@ -21,7 +21,7 @@ impl<'a> Key<'a> for EID {
 }
 
 /// A value is a data structure that can be stored in a bucket.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Value {
     Bool(bool),
     EID(EID),

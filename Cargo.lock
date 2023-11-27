@@ -617,6 +617,8 @@ dependencies = [
  "ron",
  "rustc-hash",
  "serde",
+ "sled",
+ "thiserror",
 ]
 
 [[package]]

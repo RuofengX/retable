@@ -18,6 +18,8 @@ rand = "0.8.5"
 ron = "0.8"
 rustc-hash = "1.1.0"
 serde = {version = "1.0.189", features = ["derive"]}
+sled = "0.34.7"
+thiserror = "1.0.50"
 # bimap = { version = "0.6.3", features = ["serde"] }
 # multi_index_map = "0.9.0"
 # sharded-slab = "0.1.1"
