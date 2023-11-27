@@ -7,8 +7,8 @@ use std::sync::Arc;
 use basic::{Value, EID, Delta};
 
 /// merge方法的traits
-pub trait MergeFn: Fn(&mut Value, &Delta) -> (){}
-type MergeFnClosure = Arc<dyn MergeFn>;
+pub type MergeFn = dyn Fn(&mut Value, &Delta) -> ();
+pub type MergeFnClosure = Arc<MergeFn>;
 
 /// prop存储方案必须要实现的特质
 /// 对单一属性的存储方案的签名
@@ -26,7 +26,7 @@ pub trait AtomStorage{
     fn remove(&self, eid: EID, prop: &str, retrieve: bool) -> Option<Value>;
 
     /// 注册merge函数
-    fn register_merge(&mut self, prop: &str, f: Arc<dyn MergeFn>);
+    fn register_merge(&mut self, prop: &str, f: Arc<MergeFn>);
     
     /// 使用merge函数合并属性，
     /// 为最大化性能抛弃所有结果
