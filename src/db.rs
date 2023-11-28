@@ -47,22 +47,20 @@ impl Database {
             merge_fn: FxHashMap::default(),
         })
     }
-    pub fn default(&self) -> Database {
-        Database {
-            db: Store::new(kv::Config::new("db/default")).expect("Error when create database."),
-            merge_fn: FxHashMap::default(),
-        }
-    }
-
     /// Get bucket ref.
     fn bucket(&self, prop: String) -> Bucket<'static, EID, Bincode<Value>> {
         let bucket = self.db.bucket(Some(&prop)).expect("Error when get bucket");
         bucket
     }
 }
-
-unsafe impl Sync for Database {}
-unsafe impl Send for Database {}
+impl Default for Database {
+    fn default() -> Database {
+        Database {
+            db: Store::new(kv::Config::new("db/default")).expect("Error when create database."),
+            merge_fn: FxHashMap::default(),
+        }
+    }
+}
 
 impl AtomStorage for Database {
     fn get(&self, eid: EID, prop: &str) -> Option<Value> {
