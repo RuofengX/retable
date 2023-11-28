@@ -20,20 +20,20 @@ impl<'a> Key<'a> for EID {
 }
 
 /// A value is a data structure that can be stored in a bucket.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Value {
     Bool(bool),
     EID(EID),
     UInt(u64),
     Int(i64),
     Float(f64),
-    String(String),
     UInt3([u64; 3]),
     Int3([i64; 3]),
     Float3([f64; 3]),
     UInt2([u64; 2]),
     Int2([i64; 2]),
     Float2([f64; 2]),
+    Mark([u8; 30]), // The maxium size of any variable.
 }
 
 /// A delta is a change to a value.

@@ -32,6 +32,7 @@ pub trait AtomStorage {
 
     // TODO: 添加批量merge操作
     // TODO: 添加输入、输出流
+    // TODO: 添加默认的merge函数
 }
 
 pub struct Database {
