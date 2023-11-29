@@ -20,7 +20,7 @@ impl<'a> Key<'a> for EID {
 }
 
 /// A value is a data structure that can be stored in a bucket.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Value {
     Bool(bool),
     EID(EID),
@@ -33,9 +33,21 @@ pub enum Value {
     UInt2([u64; 2]),
     Int2([i64; 2]),
     Float2([f64; 2]),
-    Mark([u8; 30]), // The maxium size of any variable.
+    Mark(Marker), // The maxium size of any variable.
 }
 
 /// A delta is a change to a value.
 /// User define the merge function to merge the delta with the current value.
 pub type Delta = Value;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Marker([u8;30]);
+impl Marker{
+    /// Create a marked value from info string.
+    /// cut off any character after 30. 
+    pub fn new(hint: &str) -> Self{
+        let mut v = [0u8; 30];
+        v.copy_from_slice(&hint.as_bytes()[..30]);
+        Marker(v)
+    }
+}

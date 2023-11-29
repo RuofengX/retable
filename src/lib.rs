@@ -4,7 +4,8 @@ pub mod db;
 
 use std::sync::Arc;
 
-use basic::{Delta, Value};
+pub use basic::{Delta, Value, EID};
+pub use db::Database;
 
 /// merge方法的traits
 pub type MergeFn = dyn Send + Sync + Fn(&mut Value, &Delta) -> ();
