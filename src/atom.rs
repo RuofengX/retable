@@ -1,4 +1,4 @@
-use crate::basic::{Value, EID, Marker};
+use crate::basic::{Marker, Value, EID};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq)]
@@ -9,7 +9,7 @@ pub struct Index {
 impl Index {
     pub fn new() -> Self {
         Index {
-            eid: EID(0),
+            eid: EID::new(0),
             prop: [0; 8],
         }
     }
@@ -25,7 +25,7 @@ impl Atom {
     pub fn empty() -> Self {
         Atom {
             index: Index {
-                eid: EID(0),
+                eid: EID::new(0),
                 prop: [0; 8],
             },
             value: Value::Mark(Marker::new("NOT_SET")),
