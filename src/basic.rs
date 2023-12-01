@@ -1,4 +1,3 @@
-use kv::Key;
 use serde::{Deserialize, Serialize};
 
 use crate::Error;
@@ -33,19 +32,6 @@ impl From<[u8; 8]> for EID {
 impl AsRef<[u8]> for EID {
     fn as_ref(&self) -> &[u8] {
         &self.0
-    }
-}
-
-impl<'a> Key<'a> for EID {
-    fn from_raw_key(r: &'a kv::Raw) -> Result<Self, kv::Error> {
-        let len = r.len();
-        if len == 8 {
-            let mut buf = [0u8; 8];
-            buf.copy_from_slice(&r.as_ref()[..]);
-            Ok(EID::from(buf))
-        } else {
-            Err(kv::Error::Poison)
-        }
     }
 }
 

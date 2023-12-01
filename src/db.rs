@@ -1,28 +1,36 @@
 /// 一个双键索引的、原子化的、kv数据库
-use crate::{Error, MergeFn, MergeFnClosure, PropBucket};
-use kv::{self, Bincode, Store, TransactionError};
-use std::{collections::BTreeMap, sync::Arc};
+use crate::{Error, MergeFn, PropBucket};
+use std::collections::BTreeMap;
 
 use crate::basic::{Delta, Value, EID};
 
-pub use kv::Config;
+use sled::{Config, Db};
 
 /// prop存储方案必须要实现的特质
 /// 对单一属性的存储方案的签名
-pub trait AtomStorage {
+pub trait AtomStorage: Sync + Send {
     /// 获取eid的属性
     fn get(&self, eid: EID, prop: &'static str) -> Option<Value>;
 
     /// 为eid的prop属性设置一个数值
+    fn set(&self, eid: EID, prop: &'static str, value: Value, retrieve: bool) -> Option<Value>;
+
+    /// 为eid的prop属性设置一个数值
     /// 如不存在则生成新的
-    fn set(&mut self, eid: EID, prop: &'static str, value: Value, retrieve: bool) -> Option<Value>;
+    fn set_mut(
+        &mut self,
+        eid: EID,
+        prop: &'static str,
+        value: Value,
+        retrieve: bool,
+    ) -> Option<Value>;
 
     /// 删除eid的属性
     /// kv实现内部可变性
     fn remove(&self, eid: EID, prop: &'static str, retrieve: bool) -> Option<Value>;
 
     /// 注册merge函数
-    fn register_merge(&mut self, prop: &'static str, f: Arc<MergeFn>);
+    fn register_merge(&self, prop: &'static str, f: MergeFn) -> Result<(), Error>;
 
     /// 使用merge函数合并属性，
     /// 为最大化性能抛弃所有结果
@@ -32,7 +40,7 @@ pub trait AtomStorage {
     fn bucket(&self, prop: &'static str) -> Option<&PropBucket>;
 
     /// 获取单一属性的Bucket，如不存在则创建
-    fn bucket_mut(&mut self, prop: &'static str) -> &PropBucket;
+    fn bucket_create(&mut self, prop: &'static str) -> &PropBucket;
 
     // TODO: 添加批量merge操作
     // TODO: 添加输入、输出流
@@ -40,8 +48,7 @@ pub trait AtomStorage {
 }
 
 pub struct Database {
-    db: Store,
-    merge_fn: BTreeMap<&'static str, MergeFnClosure>, // FxHashMap
+    db: Db,
     buckets: BTreeMap<&'static str, crate::PropBucket>,
     //TODO: 添加LRU缓存
 }
@@ -49,8 +56,7 @@ pub struct Database {
 impl Database {
     pub fn new(conf: Config) -> Result<Self, Error> {
         Ok(Database {
-            db: Store::new(conf)?,
-            merge_fn: BTreeMap::default(),
+            db: conf.open()?,
             buckets: BTreeMap::default(),
         })
     }
@@ -59,8 +65,12 @@ impl Database {
 impl Default for Database {
     fn default() -> Database {
         Database {
-            db: Store::new(kv::Config::new("db/default")).expect("Error when create database."),
-            merge_fn: BTreeMap::default(),
+            db: Config::default()
+                .path("db/default")
+                .cache_capacity(1_000_000_000)
+                .flush_every_ms(Some(1000))
+                .open()
+                .expect("Error when open default db"),
             buckets: BTreeMap::default(),
         }
     }
@@ -71,7 +81,7 @@ impl AtomStorage for Database {
         if let Some(bucket) = self.bucket(prop) {
             let k = bucket.get(&eid).expect("Error when get atom");
             match k {
-                Some(Bincode(v)) => Some(v),
+                Some(v) => Some(v),
                 None => None,
             }
         } else {
@@ -79,9 +89,30 @@ impl AtomStorage for Database {
         }
     }
 
-    fn set(&mut self, eid: EID, prop: &'static str, value: Value, retrieve: bool) -> Option<Value> {
-        let bucket = self.bucket_mut(prop);
-        if let Some(Bincode(v)) = bucket.set(&eid, &Bincode(value)).expect("Error when set") {
+    fn set(&self, eid: EID, prop: &'static str, value: Value, retrieve: bool) -> Option<Value> {
+        if let Some(bucket) = self.bucket(prop) {
+            if let Some(v) = bucket.insert(&eid, &value).expect("Error when set") {
+                if retrieve {
+                    return Some(v);
+                } else {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+        };
+        None
+    }
+
+    fn set_mut(
+        &mut self,
+        eid: EID,
+        prop: &'static str,
+        value: Value,
+        retrieve: bool,
+    ) -> Option<Value> {
+        let bucket = self.bucket_create(prop);
+        if let Some(v) = bucket.insert(&eid, &value).expect("Error when set") {
             if retrieve {
                 Some(v)
             } else {
@@ -94,7 +125,7 @@ impl AtomStorage for Database {
 
     fn remove(&self, eid: EID, prop: &'static str, retrieve: bool) -> Option<Value> {
         if let Some(bucket) = self.bucket(prop) {
-            if let Some(Bincode(v)) = bucket.remove(&eid).expect("Error when remove prop") {
+            if let Some(v) = bucket.remove(&eid).expect("Error when remove prop") {
                 if retrieve {
                     Some(v)
                 } else {
@@ -108,43 +139,40 @@ impl AtomStorage for Database {
         }
     }
 
-    fn register_merge(&mut self, prop: &'static str, f: Arc<MergeFn>) {
-        self.merge_fn.insert(prop, f);
+    fn register_merge(&self, prop: &'static str, f: MergeFn) -> Result<(), Error>{
+        if let Some(bucket) = self.bucket(prop) {
+            bucket.set_merge_operator(f);
+            Ok(())
+        } else {
+            Err(Error::PropError(prop.to_string()))
+        }
     }
 
     fn merge(&self, prop: &'static str, eid: EID, delta: Delta) -> () {
-        if let Some(bucket) = self.bucket(prop) {
-            if let Some(f) = self.merge_fn.get(prop) {
-                let _ = bucket.transaction(|trans| {
-                    let value = trans.get(&eid).expect("Error when get value.");
-                    if let Some(Bincode(mut value)) = value {
-                        f(&mut value, &delta);
-                        let _ = trans.set(&eid, &Bincode(value));
-                    } else {
-                        let _ = trans.set(&eid, &Bincode(delta));
-                    }
-                    Ok::<(), TransactionError<Error>>(())
-                });
-            }
-        };
-        ()
+        let bucket = self.bucket(prop).expect("尚未注册merge函数");
+        bucket.merge(&eid, &delta).unwrap();
     }
 
     fn bucket<'s>(&'s self, prop: &'static str) -> Option<&'s PropBucket> {
         self.buckets.get(prop)
     }
 
-    fn bucket_mut<'s>(&'s mut self, prop: &'static str) -> &'s PropBucket {
-        let bucket = self.buckets.entry(prop).or_insert(
-            self.db
-                .bucket(Some(prop))
-                .expect("Error when create bucket"),
-        );
+    fn bucket_create<'s>(&'s mut self, prop: &'static str) -> &'s PropBucket {
+        let bucket = self
+            .buckets
+            .entry(prop)
+            .or_insert(typed_sled::Tree::<EID, Value>::open(&self.db, prop));
         bucket
     }
 }
 
 mod test {
+
+    #[allow(unused_imports)]
+    use crate::MergeFn;
+    #[allow(unused_imports)]
+    use std::sync::Arc;
+
     #[allow(unused_imports)]
     use super::*;
     #[allow(unused_imports)]
@@ -154,17 +182,25 @@ mod test {
         let eid = EID::new(1);
         let prop = "prop1";
 
-        let int_merge = |value: &mut Value, delta: &Delta| {
-            if let (Value::Int(v), Value::Int(d)) = (value, delta) {
-                *v += d;
+        fn int_merge(_eid: EID, value: Option<Value>, delta: Delta) -> Option<Value> {
+            if value.is_none() {
+                return Some(delta);
             }
-        };
-        let int_merge = Arc::new(int_merge);
+            if let Some(Value::Int(mut v)) = value {
+                if let Value::Int(d) = delta {
+                    v += d;
+                    return Some(Value::Int(v));
+                }
+            }
+            None
+        }
+        static INT_MERGE_FN: fn(EID, Option<Value>, Delta) -> Option<Value> = int_merge;
 
-        let mut db = Database::new(Config::new("db/test/merge").temporary(true)).unwrap();
-        db.register_merge(prop, int_merge);
+        let mut db = Database::new(Config::new().path("db/test/merge").temporary(true)).unwrap();
 
-        db.bucket_mut(prop);
+        db.bucket_create(prop);
+        db.register_merge(prop, INT_MERGE_FN).unwrap();
+
         db.merge(prop, eid, Delta::Int(1));
         assert_eq!(db.get(eid, prop), Some(Value::Int(1)));
         db.merge(prop, eid, Delta::Int(1));
