@@ -37,6 +37,7 @@ pub struct Database {
     db: Store,
     merge_fn: BTreeMap<&'static str, MergeFnClosure>, // FxHashMap
     buckets: BTreeMap<&'static str, Bucket<'static, EID, Bincode<Value>>>,
+    //TODO: ADD LRU CACHE
 }
 
 impl Database {
