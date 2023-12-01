@@ -1,6 +1,6 @@
 /// 一个双键索引的、原子化的、kv数据库
-use crate::{Error, MergeFn, MergeFnClosure};
-use kv::{self, Bincode, Bucket, Store, TransactionError};
+use crate::{Error, MergeFn, MergeFnClosure, PropBucket};
+use kv::{self, Bincode, Store, TransactionError};
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::basic::{Delta, Value, EID};
@@ -28,6 +28,12 @@ pub trait AtomStorage {
     /// 为最大化性能抛弃所有结果
     fn merge(&self, prop: &'static str, eid: EID, delta: Delta) -> ();
 
+    /// 获取单一属性的Bucket，不存在则返回None
+    fn bucket(&self, prop: &'static str) -> Option<&PropBucket>;
+
+    /// 获取单一属性的Bucket，如不存在则创建
+    fn bucket_mut(&mut self, prop: &'static str) -> &PropBucket;
+
     // TODO: 添加批量merge操作
     // TODO: 添加输入、输出流
     // TODO: 添加默认的merge函数
@@ -36,7 +42,7 @@ pub trait AtomStorage {
 pub struct Database {
     db: Store,
     merge_fn: BTreeMap<&'static str, MergeFnClosure>, // FxHashMap
-    buckets: BTreeMap<&'static str, Bucket<'static, EID, Bincode<Value>>>,
+    buckets: BTreeMap<&'static str, crate::PropBucket>,
     //TODO: 添加LRU缓存
 }
 
@@ -48,27 +54,8 @@ impl Database {
             buckets: BTreeMap::default(),
         })
     }
-    /// Get bucket ref. Dont create new
-    fn bucket<'s>(
-        &'s self,
-        prop: &'static str,
-    ) -> Option<&'s Bucket<'static, EID, Bincode<Value>>> {
-        self.buckets.get(prop)
-    }
-
-    /// Get bucket ref, create if non-exist.
-    fn bucket_mut<'s>(
-        &'s mut self,
-        prop: &'static str,
-    ) -> &'s Bucket<'static, EID, Bincode<Value>> {
-        let bucket = self.buckets.entry(prop).or_insert(
-            self.db
-                .bucket(Some(prop))
-                .expect("Error when create bucket"),
-        );
-        bucket
-    }
 }
+
 impl Default for Database {
     fn default() -> Database {
         Database {
@@ -141,6 +128,19 @@ impl AtomStorage for Database {
             }
         };
         ()
+    }
+
+    fn bucket<'s>(&'s self, prop: &'static str) -> Option<&'s PropBucket> {
+        self.buckets.get(prop)
+    }
+
+    fn bucket_mut<'s>(&'s mut self, prop: &'static str) -> &'s PropBucket {
+        let bucket = self.buckets.entry(prop).or_insert(
+            self.db
+                .bucket(Some(prop))
+                .expect("Error when create bucket"),
+        );
+        bucket
     }
 }
 
