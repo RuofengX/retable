@@ -11,6 +11,9 @@ pub use db::Database;
 pub type MergeFn = dyn Send + Sync + Fn(&mut Value, &Delta) -> ();
 pub type MergeFnClosure = Arc<MergeFn>;
 
+/// 存储类型
+pub type Bucket = kv::Bucket<'static, EID, kv::Bincode<Value>>;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// 根据所给key未找到入口
