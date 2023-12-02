@@ -1,5 +1,5 @@
 /// 一个双键索引的、原子化的、kv数据库
-use crate::{Error, MergeFn, PropBucket};
+use crate::{Error, MergeFn, PropBucket, TickFn};
 use std::collections::BTreeMap;
 
 use crate::basic::{Delta, Value, EID};
@@ -15,9 +15,9 @@ pub trait AtomStorage: Sync + Send {
     /// 为eid的prop属性设置一个数值
     fn set(&self, eid: EID, prop: &'static str, value: Value, retrieve: bool) -> Option<Value>;
 
-    /// 为eid的prop属性设置一个数值
+    /// 为eid的prop属性设置一个数值，
     /// 如不存在则生成新的
-    fn set_mut(
+    fn set_or_insert(
         &mut self,
         eid: EID,
         prop: &'static str,
@@ -25,22 +25,22 @@ pub trait AtomStorage: Sync + Send {
         retrieve: bool,
     ) -> Option<Value>;
 
-    /// 删除eid的属性
+    /// 删除eid的属性，
     /// kv实现内部可变性
     fn remove(&self, eid: EID, prop: &'static str, retrieve: bool) -> Option<Value>;
 
-    /// 注册merge函数
-    fn register_merge(&self, prop: &'static str, f: MergeFn) -> Result<(), Error>;
+    /// 注册merge函数，如果`prop`不存在，则将返回一个`Error::PropError`
+    fn register_merge(&mut self, prop: &'static str, f: MergeFn) -> Result<(), Error>;
 
     /// 使用merge函数合并属性，
     /// 为最大化性能抛弃所有结果
     fn merge(&self, prop: &'static str, eid: EID, delta: Delta) -> ();
 
-    /// 获取单一属性的Bucket，不存在则返回None
-    fn bucket(&self, prop: &'static str) -> Option<&PropBucket>;
+    /// 注册一个tick函数，如果`prop`不存在，则将返回一个`Error::PropError`
+    fn register_tick(&mut self, prop: &'static str, f: TickFn) -> Result<(), Error>;
 
-    /// 获取单一属性的Bucket，如不存在则创建
-    fn bucket_create(&mut self, prop: &'static str) -> &PropBucket;
+    /// 调用一个prop上的tick方法
+    fn tick(&self, prop: &'static str);
 
     // TODO: 添加批量merge操作
     // TODO: 添加输入、输出流
@@ -50,6 +50,7 @@ pub trait AtomStorage: Sync + Send {
 pub struct Database {
     db: Db,
     buckets: BTreeMap<&'static str, crate::PropBucket>,
+    tick_method: BTreeMap<&'static str, TickFn>,
     //TODO: 添加LRU缓存
 }
 
@@ -58,6 +59,7 @@ impl Database {
         Ok(Database {
             db: conf.open()?,
             buckets: BTreeMap::default(),
+            tick_method: BTreeMap::default(),
         })
     }
 }
@@ -72,7 +74,22 @@ impl Default for Database {
                 .open()
                 .expect("Error when open default db"),
             buckets: BTreeMap::default(),
+            tick_method: BTreeMap::default(),
         }
+    }
+}
+
+impl Database {
+    fn bucket<'s>(&'s self, prop: &'static str) -> Option<&'s PropBucket> {
+        self.buckets.get(prop)
+    }
+
+    fn bucket_create<'s>(&'s mut self, prop: &'static str) -> &'s PropBucket {
+        let bucket = self
+            .buckets
+            .entry(prop)
+            .or_insert(typed_sled::Tree::<EID, Value>::open(&self.db, prop));
+        bucket
     }
 }
 
@@ -104,7 +121,7 @@ impl AtomStorage for Database {
         None
     }
 
-    fn set_mut(
+    fn set_or_insert(
         &mut self,
         eid: EID,
         prop: &'static str,
@@ -139,7 +156,7 @@ impl AtomStorage for Database {
         }
     }
 
-    fn register_merge(&self, prop: &'static str, f: MergeFn) -> Result<(), Error>{
+    fn register_merge(&mut self, prop: &'static str, f: MergeFn) -> Result<(), Error> {
         if let Some(bucket) = self.bucket(prop) {
             bucket.set_merge_operator(f);
             Ok(())
@@ -153,16 +170,27 @@ impl AtomStorage for Database {
         bucket.merge(&eid, &delta).unwrap();
     }
 
-    fn bucket<'s>(&'s self, prop: &'static str) -> Option<&'s PropBucket> {
-        self.buckets.get(prop)
+    fn register_tick(&mut self, prop: &'static str, f: TickFn) -> Result<(), Error> {
+        if let Some(_) = self.bucket(prop) {
+            self.tick_method.insert(prop, f);
+            Ok(())
+        } else {
+            Err(Error::PropError(prop.to_string()))
+        }
     }
 
-    fn bucket_create<'s>(&'s mut self, prop: &'static str) -> &'s PropBucket {
-        let bucket = self
-            .buckets
-            .entry(prop)
-            .or_insert(typed_sled::Tree::<EID, Value>::open(&self.db, prop));
-        bucket
+    fn tick(&self, prop: &'static str) {
+        if let Some(f) = self.tick_method.get(prop){ // 存在prop属性的tick方法
+            if let Some(bucket) = self.bucket(prop) { // 存在prop属性的bucket
+                for i in bucket.iter() { // 遍历bucket
+                    if let Ok((eid, value)) = i { // 成功获取eid和value
+                        if let Some(result) = f(eid, value, bucket) { // 成功调用tick方法
+                            let _ = bucket.merge(&eid, &result); // 合并结果
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

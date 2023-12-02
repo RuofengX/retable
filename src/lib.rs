@@ -19,7 +19,13 @@ use typed_sled::Tree;
 /// ```
 pub type MergeFn = fn(EID, Option<Value>, Delta) -> Option<Value>;
 
+/// tick方法
+/// 输入当前EID，当前Value，以及属性库
+/// 返回新的Delta
+pub type TickFn = fn(EID, Value, &PropBucket) -> Option<Delta>;
+
 /// 存储类型
+// TODO: 日后实现Dense存储会调整这个类型
 pub type PropBucket = Tree<EID, Value>;
 
 #[derive(thiserror::Error, Debug)]
@@ -39,5 +45,4 @@ pub enum Error {
     /// 溢出错误
     #[error("Error when fmt str into marker.")]
     OverflowError,
-
 }
