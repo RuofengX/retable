@@ -543,7 +543,7 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
 name = "retable"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "criterion",
  "parking_lot 0.12.1",
