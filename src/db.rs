@@ -1,51 +1,12 @@
 /// 一个双键索引的、原子化的、kv数据库
-use crate::{Error, MergeFn, PropBucket, TickFn};
-use std::collections::BTreeMap;
+use crate::{Error, MergeFn, PropBucket, TickFn, basic::PropStorage};
+use std::{collections::BTreeMap, sync::Arc};
 
 use crate::basic::{Delta, Value, EID};
 
 use sled::{Config, Db};
+use typed_sled::Tree;
 
-/// prop存储方案必须要实现的特质
-/// 对单一属性的存储方案的签名
-pub trait AtomStorage: Sync + Send {
-    /// 获取eid的属性
-    fn get(&self, eid: EID, prop: &'static str) -> Option<Value>;
-
-    /// 为eid的prop属性设置一个数值
-    fn set(&self, eid: EID, prop: &'static str, value: Value, retrieve: bool) -> Option<Value>;
-
-    /// 为eid的prop属性设置一个数值，
-    /// 如不存在则生成新的
-    fn set_or_insert(
-        &mut self,
-        eid: EID,
-        prop: &'static str,
-        value: Value,
-        retrieve: bool,
-    ) -> Option<Value>;
-
-    /// 删除eid的属性，
-    /// kv实现内部可变性
-    fn remove(&self, eid: EID, prop: &'static str, retrieve: bool) -> Option<Value>;
-
-    /// 注册merge函数，如果`prop`不存在，则将返回一个`Error::PropError`
-    fn register_merge(&mut self, prop: &'static str, f: MergeFn) -> Result<(), Error>;
-
-    /// 使用merge函数合并属性，
-    /// 为最大化性能抛弃所有结果
-    fn merge(&self, prop: &'static str, eid: EID, delta: Delta) -> ();
-
-    /// 注册一个tick函数，如果`prop`不存在，则将返回一个`Error::PropError`
-    fn register_tick(&mut self, prop: &'static str, f: TickFn) -> Result<(), Error>;
-
-    /// 调用一个prop上的tick方法
-    fn tick(&self, prop: &'static str);
-
-    // TODO: 添加批量merge操作
-    // TODO: 添加输入、输出流
-    // TODO: 添加默认的merge函数
-}
 
 pub struct Database {
     db: Db,
@@ -250,5 +211,47 @@ mod test {
             i.join().unwrap();
         }
         assert_eq!(db.get(eid, prop), Some(Value::Int(64002)));
+    }
+}
+
+/// 存储类型
+// TODO: 日后实现Dense存储会调整这个类型
+pub type PropBucket = Tree<EID, Value>;
+
+impl PropStorage for PropBucket{
+    fn name(&self) -> &'static str {
+        todo!()
+    }
+
+    fn get(&self, eid: EID) -> Option<Value> {
+        todo!()
+    }
+
+    fn set(&self, eid: EID, value: Value, retrieve: bool) -> Option<Value> {
+        todo!()
+    }
+
+    fn set_or_insert(&mut self, eid: EID, value: Value, retrieve: bool) -> Option<Value> {
+        todo!()
+    }
+
+    fn remove(&self, eid: EID, retrieve: bool) -> Option<Value> {
+        todo!()
+    }
+
+    fn register_merge(&mut self, f: crate::basic::MergeFn) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn merge(&self, eid: EID, delta: Delta) -> () {
+        todo!()
+    }
+
+    fn register_tick(&mut self, f: crate::basic::TickFn) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn tick(&self) {
+        todo!()
     }
 }

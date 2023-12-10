@@ -6,7 +6,7 @@ pub use basic::{Delta, Value, EID};
 pub use db::Database;
 use typed_sled::Tree;
 
-/// merge方法的traits
+/// merge方法的类型
 /// merge方法是由外部更新
 ///
 /// Example
@@ -24,9 +24,6 @@ pub type MergeFn = fn(EID, Option<Value>, Delta) -> Option<Value>;
 /// 返回新的Delta
 pub type TickFn = fn(EID, Value, &PropBucket) -> Option<Delta>;
 
-/// 存储类型
-// TODO: 日后实现Dense存储会调整这个类型
-pub type PropBucket = Tree<EID, Value>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
