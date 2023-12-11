@@ -1,11 +1,12 @@
 /// 一个双键索引的、原子化的、kv数据库
 use crate::{basic::PropStorage, AtomStorage, Error, MergeFn, TickFn};
-use std::{collections::BTreeMap, sync::Arc, num::NonZeroUsize};
+use std::{collections::BTreeMap, sync::Arc};
 
 use crate::basic::{Delta, Value, EID};
 
-use moka::sync::{Cache, CacheBuilder};
-use sled::{Config, Db};
+use moka::sync::Cache;
+pub use sled::Config;
+use sled::Db;
 use typed_sled::Tree;
 
 pub struct Database {
@@ -44,8 +45,8 @@ impl AtomStorage for Database {
     fn create_prop<'s>(
         &'s mut self,
         prop: &'static str,
-        tick: TickFn,
         merge: MergeFn,
+        tick: TickFn,
     ) -> Arc<dyn PropStorage> {
         let prop = self
             .props
@@ -60,10 +61,7 @@ pub struct Prop<'p> {
     name: &'p str,
     tree: Tree<EID, Value>,
     tick_method: TickFn,
-    // 头部热点数据会被缓存捕获，对此类数据的读取会直接从缓存返回，不经过数据库查询
-    // 所有的数据更新操作均会优先（在数据库操作前）刷新缓存的值，确保缓存是最新的
-    // 对于None值，也会缓存
-    cache: Cache<EID, Option<Value>>, 
+    cache: Cache<EID, Option<Value>>,
 }
 impl<'p> Prop<'p> {
     pub fn new(db: &Db, name: &'p str, tick: TickFn, merge: MergeFn) -> Self {
@@ -71,7 +69,7 @@ impl<'p> Prop<'p> {
             name,
             tree: Tree::<EID, Value>::open::<&str>(db, name),
             tick_method: tick,
-            cache: Cache::builder().max_capacity(1024*1024).build(),
+            cache: Cache::builder().max_capacity(1024 * 1024).build(),
         };
         rtn.register_merge(merge).unwrap();
         rtn
@@ -79,14 +77,38 @@ impl<'p> Prop<'p> {
 }
 
 impl<'p> PropStorage for Prop<'p> {
+    /// Return the name of this Prop.
     fn name(&self) -> &str {
         self.name
     }
-    fn get(&self, eid: EID) -> Option<Value> {
+
+    /// Get a value for a eid in Prop.
+    ///
+    /// # Example
+    /// ```rust
+    /// use retable::{Database, Config, EID, Value, AtomStorage, PropStorage};
+    ///
+    /// // create a temporary database to avoid old disk file polution.
+    /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
+    /// // create a prop with non-bound method.
+    /// let prop = db.create_prop("test_int", |_, _, _| None, |_,_,_|None);
+    ///
+    /// // Example eid is 1.
+    /// let eid = EID::new(1);
+    ///
+    /// // Get a non-exist value, it's a None.
+    /// assert_eq!(prop.get(&eid), None);
+    ///
+    /// // Set a Int(8) for eid(1) and get it.
+    /// prop.set(&eid, Value::Int(8), false);
+    /// assert_eq!(prop.get(&eid), Some(Value::Int(8)));
+    /// ```
+    ///
+    fn get(&self, eid: &EID) -> Option<Value> {
         // 访问缓存
-        if let Some(result) = self.cache.get(&eid){
+        if let Some(result) = self.cache.get(&eid) {
             // 缓存命中
-            return result
+            return result;
         }
 
         // 缓存未命中
@@ -96,28 +118,82 @@ impl<'p> PropStorage for Prop<'p> {
             .expect(format!("Error when get {:?}", &eid).as_str());
         // 更新缓存
         // 对于None值，也会缓存
-        self.cache.insert(eid, rtn);
+        self.cache.insert(*eid, rtn);
         rtn
     }
 
-    fn set(&self, eid: EID, value: Value, retrieve: bool) -> Option<Value> {
-        self.cache.insert(eid, Some(value));
-        if let Some(v) = self
+    /// Set a value for a eid in Prop.
+    /// If retrieve is true, return old value.
+    ///
+    /// # Example
+    /// ```rust
+    /// use retable::{Database, Config, EID, Value, AtomStorage, PropStorage};
+    ///
+    ///
+    /// // create a temporary database to avoid old disk file polution.
+    /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
+    /// // create a prop with non-bound method.
+    /// let prop = db.create_prop("test_int", |_, _, _| None, |_,_,_|None);
+    ///
+    /// let eid = EID::new(1);
+    /// // Set a Int(8) for eid(1) and get it.
+    /// let old = prop.set(&eid, Value::Int(42), true);
+    /// assert_eq!(old, None);
+    /// assert_eq!(prop.get(&eid), Some(Value::Int(42)));
+    ///
+    /// // Return the old value if retrieve is true.
+    /// let old = prop.set(&eid, Value::Int(43), true);
+    /// assert_eq!(old, Some(Value::Int(42)));
+    /// assert_eq!(prop.get(&eid), Some(Value::Int(43)));
+    ///
+    /// // Always return a None if retrieve is false.
+    /// let old = prop.set(&eid, Value::Int(2001), false);
+    /// assert_eq!(old, None);
+    /// assert_eq!(prop.get(&eid), Some(Value::Int(2001)));
+    /// ```
+    ///
+    fn set(&self, eid: &EID, value: Value, retrieve: bool) -> Option<Value> {
+        self.cache.insert(*eid, Some(value));
+        let old = self
             .tree
             .insert(&eid, &value)
-            .expect(format!("Error when set {:?} to {:?}", eid, value).as_str())
-        {
-            if retrieve {
-                Some(v)
-            } else {
-                None
-            }
+            .expect(format!("Error when set {:?} to {:?}", eid, value).as_str());
+        if retrieve {
+            old
         } else {
             None
         }
     }
 
-    fn remove(&self, eid: EID, retrieve: bool) -> Option<Value> {
+    /// Remove entry from Prop.
+    /// If retrieve is true, return old value.
+    ///
+    /// # Example
+    /// ```rust
+    /// use retable::{Database, Config, EID, Value, AtomStorage, PropStorage};
+    ///
+    /// // create a temporary database to avoid old disk file polution.
+    /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
+    /// // create a prop with non-bound method.
+    /// let prop = db.create_prop("test_int", |_, _, _| None, |_,_,_| None);
+    ///
+    /// // Set a value for eid(1) and eid(2) in prop.
+    /// prop.set(&EID::new(1), Value::Int(42), false);
+    /// prop.set(&EID::new(2), Value::Int(42), false);
+    /// // Let's remove it, and fetch the old value, just like "pop".
+    /// let value = prop.remove(&EID::new(42), true);
+    /// assert_eq!(value, Some(Value::Int(1)));
+    ///
+    /// // Remove the value without retrieve will always return a None.
+    /// let value = prop.remove(&EID::new(42), false);
+    /// assert_eq!(value, None);
+    ///
+    /// // Now we lost eid(1) and eid(2) forever.
+    /// assert!(prop.get(&EID::new(1)).is_none());
+    /// assert!(prop.get(&EID::new(2)).is_none());
+    /// ```
+    fn remove(&self, eid: &EID, retrieve: bool) -> Option<Value> {
+        self.cache.insert(*eid, None);
         if let Some(v) = self
             .tree
             .remove(&eid)
@@ -133,13 +209,72 @@ impl<'p> PropStorage for Prop<'p> {
         }
     }
 
+    /// Register a merge function for Prop.
+    /// See [Prop::merge] for more.
     fn register_merge(&mut self, f: MergeFn) -> Result<(), Error> {
         self.tree.set_merge_operator(f); // 使用typed_sled的merge方法
         Ok(())
     }
 
-    fn merge(&self, eid: EID, delta: Delta) -> () {
-        self.tree.merge(&eid, &delta).expect("没有注册merge函数");
+    /// Merge a delta to a value(index by given eid) in Prop.
+    ///
+    /// # Example
+    /// ```rust
+    /// use retable::{Database, Config, EID, Value, Delta, AtomStorage, PropStorage};
+    ///
+    /// // First define a merge function,
+    /// // which merge a delta value int into the old value by addition, and return the new value.
+    /// //
+    /// // the old one is called "old", the new one is called "delta".
+    /// //
+    /// // Return None if either value is not int. Return Some(Value) if both values are int.
+    /// // Do nothing if old value is None.
+    /// // Method signature is defined by [`crate::MergeFn`]
+    /// const fn int_add_merge(_: EID, old: Option<Value>, delta: Delta) -> Option<Value> {
+    ///     if let Some(old) = old {
+    ///         match (old, delta) {
+    ///             (Value::Int(v), Delta::Int(d)) => {
+    ///                 Some(Value::Int(v + d))
+    ///             }
+    ///             _ => {
+    ///                 None
+    ///             }
+    ///         }
+    ///     } else {
+    ///         None
+    ///     }
+    /// }
+    ///
+    /// // create a temporary database to avoid old disk file polution.
+    /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
+    /// // create a prop with int_add_merge and non-tick method.
+    /// let prop = db.create_prop("test_int", int_add_merge, |_,_,_| None);
+    ///
+    /// // Set some value first.
+    /// prop.set(&EID::new(1), Value::Int(42), false);
+    /// prop.set(&EID::new(2), Value::Int(2023), false);
+    ///
+    /// // The delta that should be merged
+    /// let delta = Delta::Int(666);
+    /// // Merge it.
+    /// // Note that the prop is immutable, the Sync and Send traits is garenteed by inner design.
+    /// // So **DO NOT** use a Mutex (or any other lock) to protect the prop.
+    /// prop.merge(&EID::new(1), delta);
+    /// prop.merge(&EID::new(2), delta);
+    ///
+    /// // Check the result.
+    /// assert_eq!(prop.get(&EID::new(1)), Some(Value::Int(708)));
+    /// assert_eq!(prop.get(&EID::new(2)), Some(Value::Int(2689)));
+    ///
+    /// // The None value merged function is fully defined by the Merge Function
+    /// // In our scenery, it will do nothing. You can modify the merge method to implement more complex logic.
+    /// prop.merge(&EID::new(3), delta);
+    /// assert_eq!(prop.get(&EID::new(3)), None);
+    /// ```
+    ///
+    fn merge(&self, eid: &EID, delta: Delta) -> () {
+        let new = self.tree.merge(&eid, &delta).expect("没有注册merge函数");
+        self.cache.insert(*eid, new);
     }
 
     fn register_tick(&mut self, f: TickFn) -> Result<(), Error> {

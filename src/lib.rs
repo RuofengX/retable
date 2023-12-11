@@ -9,3 +9,4 @@ pub use basic::{
 };
 pub use db::Database;
 pub use error::Error;
+pub use sled::Config;
