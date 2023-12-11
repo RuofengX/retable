@@ -1,3 +1,4 @@
 /target
 *.ron*
 /db/
+default.sled

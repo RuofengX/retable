@@ -1,20 +1,28 @@
-/// 一个双键索引的、原子化的、kv数据库
-use crate::{basic::PropStorage, AtomStorage, Error, MergeFn, TickFn};
+//! 一个双键索引的、原子化的、kv数据库
 use std::{collections::BTreeMap, sync::Arc};
 
-use crate::basic::{Delta, Value, EID};
+use crate::{
+    api::{AtomStorage, PropStorage},
+    basic::{Delta, Value, EID},
+    error::Error,
+    method::{MergeFn, TickFn},
+};
 
 use moka::sync::Cache;
 pub use sled::Config;
 use sled::Db;
 use typed_sled::Tree;
 
+/// As the name says.
 pub struct Database {
     db: Db,
     props: BTreeMap<&'static str, Arc<dyn PropStorage>>,
 }
 
 impl Database {
+    /// Create a new database.
+    /// 
+    /// Using sled config. See more in [`Config`]
     pub fn new(conf: Config) -> Result<Self, Error> {
         Ok(Database {
             db: conf.open()?,
@@ -57,6 +65,9 @@ impl AtomStorage for Database {
     }
 }
 
+/// The level-2 storage beneath Database, which impl [`crate::api::PropStorage`].
+/// 
+/// It returned by [`Database::create_prop`] or [`Database::get_prop`].
 pub struct Prop<'p> {
     name: &'p str,
     tree: Tree<EID, Value>,
@@ -64,6 +75,10 @@ pub struct Prop<'p> {
     cache: Cache<EID, Option<Value>>,
 }
 impl<'p> Prop<'p> {
+    /// Create a new Prop.
+    /// 
+    /// Note that the merge method is necessary,
+    /// if not used, just invoke an empty closure like `|_,_,_|None`.
     pub fn new(db: &Db, name: &'p str, tick: TickFn, merge: MergeFn) -> Self {
         let mut rtn = Self {
             name,
@@ -86,7 +101,7 @@ impl<'p> PropStorage for Prop<'p> {
     ///
     /// # Example
     /// ```rust
-    /// use retable::{Database, Config, EID, Value, AtomStorage, PropStorage};
+    /// use retable::{Database, Config, basic::{EID, Value}, api::{AtomStorage, PropStorage}};
     ///
     /// // create a temporary database to avoid old disk file polution.
     /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
@@ -127,11 +142,11 @@ impl<'p> PropStorage for Prop<'p> {
     ///
     /// # Example
     /// ```rust
-    /// use retable::{Database, Config, EID, Value, AtomStorage, PropStorage};
+    /// use retable::{Database, Config, basic::{EID, Value}, api::{AtomStorage, PropStorage}};
     ///
     ///
     /// // create a temporary database to avoid old disk file polution.
-    /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
+    /// let mut db = Database::new(Config::default().temporary(false)).unwrap();
     /// // create a prop with non-bound method.
     /// let prop = db.create_prop("test_int", |_, _, _| None, |_,_,_|None);
     ///
@@ -170,7 +185,7 @@ impl<'p> PropStorage for Prop<'p> {
     ///
     /// # Example
     /// ```rust
-    /// use retable::{Database, Config, EID, Value, AtomStorage, PropStorage};
+    /// use retable::{Database, Config, basic::{EID, Value}, api::{AtomStorage, PropStorage}};
     ///
     /// // create a temporary database to avoid old disk file polution.
     /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
@@ -181,11 +196,11 @@ impl<'p> PropStorage for Prop<'p> {
     /// prop.set(&EID::new(1), Value::Int(42), false);
     /// prop.set(&EID::new(2), Value::Int(42), false);
     /// // Let's remove it, and fetch the old value, just like "pop".
-    /// let value = prop.remove(&EID::new(42), true);
-    /// assert_eq!(value, Some(Value::Int(1)));
+    /// let value = prop.remove(&EID::new(1), true);
+    /// assert_eq!(value, Some(Value::Int(42)));
     ///
     /// // Remove the value without retrieve will always return a None.
-    /// let value = prop.remove(&EID::new(42), false);
+    /// let value = prop.remove(&EID::new(2), false);
     /// assert_eq!(value, None);
     ///
     /// // Now we lost eid(1) and eid(2) forever.
@@ -220,7 +235,7 @@ impl<'p> PropStorage for Prop<'p> {
     ///
     /// # Example
     /// ```rust
-    /// use retable::{Database, Config, EID, Value, Delta, AtomStorage, PropStorage};
+    /// use retable::{Database, Config, basic::{EID, Value, Delta}, api::{AtomStorage, PropStorage}};
     ///
     /// // First define a merge function,
     /// // which merge a delta value int into the old value by addition, and return the new value.

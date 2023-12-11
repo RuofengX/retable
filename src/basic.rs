@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 
-use crate::Error;
-use method::{MergeFn, TickFn};
+use crate::error::Error;
 
-/// An EID is a unique identifier for an entity.
+/// The unique identifier for an entity.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EID([u8; 8]);
 impl EID {
@@ -38,7 +35,7 @@ impl AsRef<[u8]> for EID {
     }
 }
 
-/// A value is a data structure that can be stored in a bucket.
+/// An enum data structure that can be stored in a bucket.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Value {
     Bool(bool),
@@ -58,14 +55,16 @@ pub enum Value {
 /// A delta is a change to a value.  /// User define the merge function to merge the delta with the current value.
 pub type Delta = Value;
 
+/// A limited length string that used as a marker.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Marker([u8; 30]);
+pub struct Marker([u8; 31]);
 impl Marker {
     /// Create a marked value from info string.
-    /// cut off any character after 30.
+    ///
+    /// cut off any character after 31.
     pub fn new(hint: &str) -> Self {
-        let mut v = [0u8; 30];
-        v.copy_from_slice(&hint.as_bytes()[..30]);
+        let mut v = [0u8; 31];
+        v.copy_from_slice(&hint.as_bytes()[..31]);
         Marker(v)
     }
 }
@@ -75,74 +74,12 @@ impl TryFrom<&'static str> for Marker {
     /// Create a marked value from info string.
     /// Return an Error when the length of str is greater than 30
     fn try_from(value: &'static str) -> Result<Self, Self::Error> {
-        let mut v = [0u8; 30];
+        let mut v = [0u8; 31];
         let buf = value.as_bytes();
-        if buf.len() > 30 {
+        if buf.len() > 31 {
             return Err(Error::OverflowError);
         }
         v.copy_from_slice(&buf[..30]);
         Ok(Marker(v))
     }
-}
-
-pub trait PropStorage {
-
-    /// 获取存储的名称
-    fn name(&self) -> &str;
-
-    /// 获取eid的属性
-    fn get(&self, eid: &EID) -> Option<Value>;
-
-    /// 为eid的prop属性设置一个数值
-    fn set(&self, eid: &EID, value: Value, retrieve: bool) -> Option<Value>;
-
-    /// 删除eid的属性，
-    /// kv实现内部可变性
-    fn remove(&self, eid: &EID, retrieve: bool) -> Option<Value>;
-
-    /// 注册merge函数，如果`prop`不存在，则将返回一个`Error::PropError`
-    fn register_merge(&mut self, f: MergeFn) -> Result<(), Error>;
-
-    /// 使用merge函数合并属性，
-    /// 为最大化性能抛弃所有结果
-    fn merge(&self, eid: &EID, delta: Delta) -> ();
-
-    /// 注册一个tick函数，如果`prop`不存在，则将返回一个`Error::PropError`
-    fn register_tick(&mut self, f: TickFn) -> Result<(), Error>;
-
-    /// 调用一个prop上的tick方法
-    fn tick(&self);
-
-    // TODO: 添加批量merge操作
-    // TODO: 添加输入、输出流
-    // TODO: 添加默认的merge函数
-}
-
-/// prop存储方案必须要实现的特质
-/// 对单一属性的存储方案的签名
-pub trait AtomStorage{
-    fn get_prop(&self, prop: &'static str) -> Option<Arc<dyn PropStorage>>;
-
-    fn create_prop(&mut self, prop: &'static str, merge: MergeFn, tick: TickFn) -> Arc<dyn PropStorage>;
-}
-
-pub mod method {
-    use super::*;
-    /// merge方法的类型
-    /// merge方法是由外部更新
-    ///
-    /// Example
-    /// ```
-    /// Fn(
-    ///     EID,           // merge发生的EID
-    ///     Option::<Value>, // 当前Value，如果有
-    ///     Delta,         // 传入的Delta
-    /// ) -> Option::<Value> // 返回新的Value，返回None表示删除原有Value
-    /// ```
-    pub type MergeFn = fn(EID, Option<Value>, Delta) -> Option<Value>;
-
-    /// tick方法
-    /// 输入当前EID，当前Value，以及属性库
-    /// 返回新的Delta
-    pub type TickFn = fn(EID, Value, &dyn PropStorage) -> Option<Delta>;
 }
