@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
 use crate::Error;
+use method::{MergeFn, TickFn};
 
 /// An EID is a unique identifier for an entity.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -83,18 +86,15 @@ impl TryFrom<&'static str> for Marker {
 }
 
 pub trait PropStorage {
+
     /// 获取存储的名称
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     /// 获取eid的属性
     fn get(&self, eid: EID) -> Option<Value>;
 
     /// 为eid的prop属性设置一个数值
     fn set(&self, eid: EID, value: Value, retrieve: bool) -> Option<Value>;
-
-    /// 为eid的prop属性设置一个数值，
-    /// 如不存在则生成新的
-    fn set_or_insert(&mut self, eid: EID, value: Value, retrieve: bool) -> Option<Value>;
 
     /// 删除eid的属性，
     /// kv实现内部可变性
@@ -120,27 +120,29 @@ pub trait PropStorage {
 
 /// prop存储方案必须要实现的特质
 /// 对单一属性的存储方案的签名
-pub trait AtomStorage: Sync + Send {
-    fn get_prop<'s>(&'s self, prop: &'static str) -> Option<&'s dyn PropStorage>;
+pub trait AtomStorage{
+    fn get_prop(&self, prop: &'static str) -> Option<Arc<dyn PropStorage>>;
 
-    fn get_prop_or_create<'s>(&'s mut self, prop: &'static str) -> &'s dyn PropStorage;
+    fn create_prop(&mut self, prop: &'static str, tick: TickFn, merge: MergeFn) -> Arc<dyn PropStorage>;
 }
 
-/// merge方法的类型
-/// merge方法是由外部更新
-///
-/// Example
-/// ```
-/// Fn(
-///     EID,           // merge发生的EID
-///     Option::<Value>, // 当前Value，如果有
-///     Delta,         // 传入的Delta
-/// ) -> Option::<Value> // 返回新的Value，返回None表示删除原有Value
-/// ```
-pub type MergeFn = fn(EID, Option<Value>, Delta) -> Option<Value>;
+pub mod method {
+    use super::*;
+    /// merge方法的类型
+    /// merge方法是由外部更新
+    ///
+    /// Example
+    /// ```
+    /// Fn(
+    ///     EID,           // merge发生的EID
+    ///     Option::<Value>, // 当前Value，如果有
+    ///     Delta,         // 传入的Delta
+    /// ) -> Option::<Value> // 返回新的Value，返回None表示删除原有Value
+    /// ```
+    pub type MergeFn = fn(EID, Option<Value>, Delta) -> Option<Value>;
 
-/// tick方法
-/// 输入当前EID，当前Value，以及属性库
-/// 返回新的Delta
-pub type TickFn = fn(EID, Value, &PropBucket) -> Option<Delta>;
-
+    /// tick方法
+    /// 输入当前EID，当前Value，以及属性库
+    /// 返回新的Delta
+    pub type TickFn = fn(EID, Value, &dyn PropStorage) -> Option<Delta>;
+}
