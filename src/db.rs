@@ -1,16 +1,16 @@
 /// 一个双键索引的、原子化的、kv数据库
 use crate::{basic::PropStorage, AtomStorage, Error, MergeFn, TickFn};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc, num::NonZeroUsize};
 
 use crate::basic::{Delta, Value, EID};
 
+use moka::sync::{Cache, CacheBuilder};
 use sled::{Config, Db};
 use typed_sled::Tree;
 
 pub struct Database {
     db: Db,
     props: BTreeMap<&'static str, Arc<dyn PropStorage>>,
-    //TODO: 添加LRU缓存
 }
 
 impl Database {
@@ -60,6 +60,10 @@ pub struct Prop<'p> {
     name: &'p str,
     tree: Tree<EID, Value>,
     tick_method: TickFn,
+    // 头部热点数据会被缓存捕获，对此类数据的读取会直接从缓存返回，不经过数据库查询
+    // 所有的数据更新操作均会优先（在数据库操作前）刷新缓存的值，确保缓存是最新的
+    // 对于None值，也会缓存
+    cache: Cache<EID, Option<Value>>, 
 }
 impl<'p> Prop<'p> {
     pub fn new(db: &Db, name: &'p str, tick: TickFn, merge: MergeFn) -> Self {
@@ -67,6 +71,7 @@ impl<'p> Prop<'p> {
             name,
             tree: Tree::<EID, Value>::open::<&str>(db, name),
             tick_method: tick,
+            cache: Cache::builder().max_capacity(1024*1024).build(),
         };
         rtn.register_merge(merge).unwrap();
         rtn
@@ -78,17 +83,25 @@ impl<'p> PropStorage for Prop<'p> {
         self.name
     }
     fn get(&self, eid: EID) -> Option<Value> {
-        let k = self
+        // 访问缓存
+        if let Some(result) = self.cache.get(&eid){
+            // 缓存命中
+            return result
+        }
+
+        // 缓存未命中
+        let rtn = self
             .tree
             .get(&eid)
             .expect(format!("Error when get {:?}", &eid).as_str());
-        match k {
-            Some(v) => Some(v),
-            None => None,
-        }
+        // 更新缓存
+        // 对于None值，也会缓存
+        self.cache.insert(eid, rtn);
+        rtn
     }
 
     fn set(&self, eid: EID, value: Value, retrieve: bool) -> Option<Value> {
+        self.cache.insert(eid, Some(value));
         if let Some(v) = self
             .tree
             .insert(&eid, &value)

@@ -9,6 +9,8 @@ version = "0.5.3"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+lru = "0.12.1"
+moka = { version = "0.12.1", features = ["sync"] }
 parking_lot = { version = "0.12.1", features = ["serde"] }
 rustc-hash = "1.1.0"
 serde = { version = "1.0.189", features = ["derive"] }
@@ -18,7 +20,3 @@ typed-sled = "0.2.3"
 
 [dev-dependencies]
 criterion = "0.5.1"
-
-# [[bench]]
-# name = "bench_props"
-# harness = false

@@ -6,7 +6,7 @@ use crate::Error;
 use method::{MergeFn, TickFn};
 
 /// An EID is a unique identifier for an entity.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EID([u8; 8]);
 impl EID {
     pub fn new(value: u64) -> Self {
