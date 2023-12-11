@@ -1,9 +1,13 @@
 [package]
-description = "一个Atomic-like的双索引<实体-属性>数据结构"
+description = "An Atomic-like double indexed entity-attribute data structures."
+authors = ["RuofengX <<i@ruofengx.cn>>"]
+categories = ["database"]
+keywords = ["database", "atomic", "double-indexed", "entity-attribute", "ecs"]
+readme = "README"
 edition = "2021"
 license = "MIT"
 name = "retable"
-version = "0.6.0"
+version = "0.6.0-r1"
 repository = "https://github.com/RuofengX/retable"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
