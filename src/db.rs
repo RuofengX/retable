@@ -17,7 +17,7 @@ use typed_sled::Tree;
 /// As the name says.
 pub struct Database {
     db: Db,
-    props: BTreeMap<&'static str, Arc<dyn PropStorage>>,
+    props: BTreeMap<String, Arc<dyn PropStorage>>,
 }
 
 impl Database {
@@ -51,16 +51,16 @@ impl AtomStorage for Database {
         self.props.get(prop).map(|x| x.clone())
     }
 
-    fn create_prop<'s>(
-        &'s mut self,
-        prop: &'static str,
+    fn create_prop(
+        &mut self,
+        prop_name: String,
         merge: MergeFn,
         tick: TickFn,
     ) -> Arc<dyn PropStorage> {
         let prop = self
             .props
-            .entry(prop)
-            .or_insert_with(|| Arc::new(Prop::new(&self.db, prop, tick, merge)))
+            .entry(prop_name.clone())
+            .or_insert_with(|| Arc::new(Prop::new(&self.db, prop_name, tick, merge)))
             .clone();
         prop
     }
@@ -69,21 +69,21 @@ impl AtomStorage for Database {
 /// The level-2 storage beneath Database, which impl [`crate::api::PropStorage`].
 ///
 /// It returned by [`Database::create_prop`] or [`Database::get_prop`].
-pub struct Prop<'p> {
-    name: &'p str,
+pub struct Prop {
+    name: String,
     tree: Tree<EID, Value>,
     tick_method: TickFn,
     cache: Cache<EID, Option<Value>>,
 }
-impl<'p> Prop<'p> {
+impl Prop {
     /// Create a new Prop.
     ///
     /// Note that the merge method is necessary,
     /// if not used, just invoke an empty closure like `|_,_,_|None`.
-    pub fn new(db: &Db, name: &'p str, tick: TickFn, merge: MergeFn) -> Self {
+    pub fn new(db: &Db, name: String, tick: TickFn, merge: MergeFn) -> Self {
         let mut rtn = Self {
-            name,
-            tree: Tree::<EID, Value>::open::<&str>(db, name),
+            name: name.clone(),
+            tree: Tree::<EID, Value>::open::<&str>(db, &name),
             tick_method: tick,
             cache: Cache::builder().max_capacity(1024 * 1024).build(),
         };
@@ -92,10 +92,10 @@ impl<'p> Prop<'p> {
     }
 }
 
-impl<'p> PropStorage for Prop<'p> {
+impl PropStorage for Prop {
     /// Return the name of this Prop.
-    fn name(&self) -> &str {
-        self.name
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     /// Get a value for a eid in Prop.
@@ -298,10 +298,10 @@ impl<'p> PropStorage for Prop<'p> {
     }
 
     /// Tick all entity.
-    /// 
+    ///
     /// Tick actions is launched in parellar, by calling tick method using (&EID, Value, &Self)
     /// The result delta of every tick is auto merged.
-    /// 
+    ///
     /// See more in [`crate::method::TickFn`]
     fn tick(&self) {
         self.tree.iter().par_bridge().for_each(|i| {

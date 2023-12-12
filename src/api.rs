@@ -11,7 +11,7 @@ use crate::{
 /// 'prop' means that the storage is only for one property.
 pub trait PropStorage {
     /// Get name of prop.
-    fn name(&self) -> &str;
+    fn name(&self) -> String;
 
     /// Get entity's value. None if not exists. 
     /// 
@@ -76,7 +76,7 @@ pub trait AtomStorage {
     /// If already exists, return the old data but register new method.
     fn create_prop(
         &mut self,
-        prop: &'static str,
+        prop: String,
         merge: MergeFn,
         tick: TickFn,
     ) -> Arc<dyn PropStorage>;
