@@ -22,23 +22,28 @@ Atom is a way to describe a single entity-attribute pair.
 31 bytes contain the data.
 
 Supports the following types(in rust):
-- Bool(bool)
-- EID(EID)
-- UInt(u64)
-- Int(i64)
-- Float(f64)
-- UInt3([u64; 3])
-- Int3([i64; 3])
-- Float3([f64; 3])
-- UInt2([u64; 2])
-- Int2([i64; 2])
-- Float2([f64; 2])
-- Mark(31-bytes str)
+```rust
+pub enum Value {
+    Bool(bool),
+    EID(EID),
+    UInt(u64),
+    Int(i64),
+    Float(f64),
+    UInt3([u64; 3]),
+    Int3([i64; 3]),
+    Float3([f64; 3]),
+    UInt2([u64; 2]),
+    Int2([i64; 2]),
+    Float2([f64; 2]),
+    Mark(Marker), // a 31-bytes length fix size string.
+}
+
+```
 
 ## Features 
 
 - Double indexed by Entity ID and Property Name.
-- Built on top of [sled](https://docs.rs/sled/latest/sled/index.html) and [moka](https://docs.rs/moka/latest/moka/index.html)
+- Built on top of giants, [sled](https://docs.rs/sled/latest/sled/index.html) for database, [moka](https://docs.rs/moka/latest/moka/index.html) for cache and [rayon](https://docs.rs/rayon/latest/rayon/index.html) for parallel.
 - Thread-safe
 - No unsafe code
 
