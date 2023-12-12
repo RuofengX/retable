@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     api::{AtomStorage, PropStorage},
-    basic::{Delta, Value, EID},
+    basic::{Delta, Value, EID, PropTag},
     error::Error,
     method::{MergeFn, TickFn},
 };
@@ -17,7 +17,7 @@ use typed_sled::Tree;
 /// As the name says.
 pub struct Database {
     db: Db,
-    props: BTreeMap<String, Arc<dyn PropStorage>>,
+    props: BTreeMap<PropTag, Arc<dyn PropStorage>>,
 }
 
 impl Database {
@@ -47,13 +47,13 @@ impl Default for Database {
 }
 
 impl AtomStorage for Database {
-    fn get_prop(&self, prop: &'static str) -> Option<Arc<dyn PropStorage>> {
+    fn get_prop(&self, prop: &PropTag) -> Option<Arc<dyn PropStorage>> {
         self.props.get(prop).map(|x| x.clone())
     }
 
     fn create_prop(
         &mut self,
-        prop_name: String,
+        prop_name: PropTag,
         merge: MergeFn,
         tick: TickFn,
     ) -> Arc<dyn PropStorage> {
@@ -70,7 +70,7 @@ impl AtomStorage for Database {
 ///
 /// It returned by [`Database::create_prop`] or [`Database::get_prop`].
 pub struct Prop {
-    name: String,
+    name: PropTag,
     tree: Tree<EID, Value>,
     tick_method: TickFn,
     cache: Cache<EID, Option<Value>>,
@@ -80,10 +80,10 @@ impl Prop {
     ///
     /// Note that the merge method is necessary,
     /// if not used, just invoke an empty closure like `|_,_,_|None`.
-    pub fn new(db: &Db, name: String, tick: TickFn, merge: MergeFn) -> Self {
+    pub fn new(db: &Db, name: PropTag, tick: TickFn, merge: MergeFn) -> Self {
         let mut rtn = Self {
             name: name.clone(),
-            tree: Tree::<EID, Value>::open::<&str>(db, &name),
+            tree: Tree::<EID, Value>::open::<PropTag>(db, name),
             tick_method: tick,
             cache: Cache::builder().max_capacity(1024 * 1024).build(),
         };
@@ -94,8 +94,8 @@ impl Prop {
 
 impl PropStorage for Prop {
     /// Return the name of this Prop.
-    fn name(&self) -> String {
-        self.name.clone()
+    fn name(&self) -> PropTag{
+        self.name
     }
 
     /// Get a value for a eid in Prop.

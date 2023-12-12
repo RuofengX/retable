@@ -84,17 +84,53 @@ impl TryFrom<&'static str> for Marker {
 
     /// Create a marked value from info string.
     /// Return an Error when the length of str is greater than 30
-    fn try_from(value: &'static str) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let mut v = [0u8; 31];
         let buf = value.as_bytes();
         if buf.len() > 31 {
             return Err(Error::OverflowError);
         }
-        v.copy_from_slice(&buf[..30]);
+        v.copy_from_slice(&buf[..31]);
         Ok(Marker(v))
     }
 }
 impl AsRef<str> for Marker {
+    fn as_ref(&self) -> &str {
+        unsafe { std::str::from_utf8_unchecked(&self.0) }
+    }
+}
+
+/// A limited length string that used as a name of prop.
+///
+/// Cheap workaround to make the name of prop Copy.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PropTag([u8; 8]);
+impl PropTag {
+    /// Create a marked prop tag from info string.
+    ///
+    /// cut off any character after 8.
+    pub fn new(hint: &str) -> Self {
+        let mut v = [0u8; 8];
+        v.copy_from_slice(&hint.as_bytes()[..8]);
+        PropTag(v)
+    }
+}
+impl TryFrom<&'static str> for PropTag {
+    type Error = Error;
+
+    /// Create a prop tag from string.
+    /// Return an Error when the length of str is greater than 30
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let mut v = [0u8; 8];
+        let buf = value.as_bytes();
+        if buf.len() > 8 {
+            return Err(Error::OverflowError);
+        }
+        v.copy_from_slice(&buf[..8]);
+        Ok(PropTag(v))
+    }
+}
+impl AsRef<str> for PropTag {
     fn as_ref(&self) -> &str {
         unsafe { std::str::from_utf8_unchecked(&self.0) }
     }

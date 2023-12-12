@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use crate::{
-    basic::{Delta, Value, EID},
+    basic::{Delta, Value, EID, PropTag},
     method::{MergeFn, TickFn},
 };
 
@@ -11,7 +11,7 @@ use crate::{
 /// 'prop' means that the storage is only for one property.
 pub trait PropStorage: Sync + Send {
     /// Get name of prop.
-    fn name(&self) -> String;
+    fn name(&self) -> PropTag;
 
     /// Get entity's value. None if not exists.
     ///
@@ -69,10 +69,10 @@ pub trait AtomStorage {
     /// Get Prop reference from Database.
     ///
     /// Return None if not exist.
-    fn get_prop(&self, prop: &'static str) -> Option<Arc<dyn PropStorage>>;
+    fn get_prop(&self, prop: &PropTag) -> Option<Arc<dyn PropStorage>>;
 
-    /// Create Prop.
-    ///
+
+
     /// If already exists, return the old data but register new method.
-    fn create_prop(&mut self, prop: String, merge: MergeFn, tick: TickFn) -> Arc<dyn PropStorage>;
+    fn create_prop(&mut self, prop: PropTag, merge: MergeFn, tick: TickFn) -> Arc<dyn PropStorage>;
 }
