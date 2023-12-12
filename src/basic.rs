@@ -38,9 +38,9 @@ impl AsRef<[u8]> for EID {
     }
 }
 
-/// A mark that could convert into [`Value`] 
+/// A mark that could convert into [`Value`]
 #[enum_dispatch]
-pub trait Valuable{}
+pub trait Valuable {}
 
 /// An enum data structure that can be stored in a bucket.
 #[allow(missing_docs)]
@@ -62,7 +62,7 @@ pub enum Value {
 }
 
 /// A delta is a change to a value.
-/// 
+///
 /// User define the merge function to merge the delta with the current value.
 pub type Delta = Value;
 
@@ -92,5 +92,10 @@ impl TryFrom<&'static str> for Marker {
         }
         v.copy_from_slice(&buf[..30]);
         Ok(Marker(v))
+    }
+}
+impl AsRef<str> for Marker {
+    fn as_ref(&self) -> &str {
+        unsafe { std::str::from_utf8_unchecked(&self.0) }
     }
 }
