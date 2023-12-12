@@ -7,6 +7,7 @@ use crate::error::Error;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EID([u8; 8]);
 impl EID {
+    #[allow(missing_docs)]
     pub fn new(value: u64) -> Self {
         EID::from(value)
     }
@@ -37,6 +38,7 @@ impl AsRef<[u8]> for EID {
 }
 
 /// An enum data structure that can be stored in a bucket.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Value {
     Bool(bool),

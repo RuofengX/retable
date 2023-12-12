@@ -1,3 +1,5 @@
+//! Define stateful method that interact with database.
+
 use crate::basic::{Delta, Value, EID};
 
 /// The merge method for one [crate::api::PropStorage].

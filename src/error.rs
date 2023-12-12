@@ -1,3 +1,6 @@
+//! Error type.
+
+/// Error type.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// 根据所给prop未找到属性库

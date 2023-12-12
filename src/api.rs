@@ -66,8 +66,14 @@ pub trait PropStorage {
 
 /// The trait that design for database storage.
 pub trait AtomStorage {
+    /// Get Prop reference from Database.
+    /// 
+    /// Return None if not exist.
     fn get_prop(&self, prop: &'static str) -> Option<Arc<dyn PropStorage>>;
 
+    /// Create Prop.
+    /// 
+    /// If already exists, return the old data but register new method.
     fn create_prop(
         &mut self,
         prop: &'static str,

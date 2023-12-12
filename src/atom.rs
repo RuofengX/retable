@@ -1,4 +1,5 @@
 //! ATOM, Atomic Type Object Model
+#![allow(missing_docs)]
 use crate::basic::{Marker, Value, EID};
 use serde::{Deserialize, Serialize};
 
