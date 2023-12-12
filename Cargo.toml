@@ -7,12 +7,13 @@ readme = "README.md"
 edition = "2021"
 license = "MIT"
 name = "retable"
-version = "0.6.2-r1"
+version = "0.6.2-r2"
 repository = "https://github.com/RuofengX/retable"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+enum_dispatch = "0.3.12"
 moka = { version = "0.12.1", features = ["sync"] }
 rayon = "1.8.0"
 serde = { version = "1.0.189", features = ["derive"] }

@@ -1,4 +1,5 @@
 //! Basic types wrapper used in database.
+use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -37,8 +38,13 @@ impl AsRef<[u8]> for EID {
     }
 }
 
+/// A mark that could convert into [`Value`] 
+#[enum_dispatch]
+pub trait Valuable{}
+
 /// An enum data structure that can be stored in a bucket.
 #[allow(missing_docs)]
+#[enum_dispatch(Valuable)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Value {
     Bool(bool),
@@ -55,7 +61,9 @@ pub enum Value {
     Mark(Marker), // The maxium size of any variable.
 }
 
-/// A delta is a change to a value.  /// User define the merge function to merge the delta with the current value.
+/// A delta is a change to a value.
+/// 
+/// User define the merge function to merge the delta with the current value.
 pub type Delta = Value;
 
 /// A limited length string that used as a marker.
