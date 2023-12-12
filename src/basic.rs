@@ -1,3 +1,4 @@
+//! Basic types wrapper used in database.
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;

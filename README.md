@@ -33,7 +33,7 @@ Supports the following types(in rust):
 - UInt2([u64; 2])
 - Int2([i64; 2])
 - Float2([f64; 2])
-- Mark(30-bit str)
+- Mark(31-bytes str)
 
 ## Features 
 

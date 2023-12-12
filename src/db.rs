@@ -1,4 +1,5 @@
-//! 一个双键索引的、原子化的、kv数据库
+//! The core module
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
@@ -21,7 +22,7 @@ pub struct Database {
 
 impl Database {
     /// Create a new database.
-    /// 
+    ///
     /// Using sled config. See more in [`Config`]
     pub fn new(conf: Config) -> Result<Self, Error> {
         Ok(Database {
@@ -66,7 +67,7 @@ impl AtomStorage for Database {
 }
 
 /// The level-2 storage beneath Database, which impl [`crate::api::PropStorage`].
-/// 
+///
 /// It returned by [`Database::create_prop`] or [`Database::get_prop`].
 pub struct Prop<'p> {
     name: &'p str,
@@ -76,7 +77,7 @@ pub struct Prop<'p> {
 }
 impl<'p> Prop<'p> {
     /// Create a new Prop.
-    /// 
+    ///
     /// Note that the merge method is necessary,
     /// if not used, just invoke an empty closure like `|_,_,_|None`.
     pub fn new(db: &Db, name: &'p str, tick: TickFn, merge: MergeFn) -> Self {
@@ -86,7 +87,7 @@ impl<'p> Prop<'p> {
             tick_method: tick,
             cache: Cache::builder().max_capacity(1024 * 1024).build(),
         };
-        rtn.register_merge(merge).unwrap();
+        rtn.register_merge(merge);
         rtn
     }
 }
@@ -226,9 +227,8 @@ impl<'p> PropStorage for Prop<'p> {
 
     /// Register a merge function for Prop.
     /// See [Prop::merge] for more.
-    fn register_merge(&mut self, f: MergeFn) -> Result<(), Error> {
+    fn register_merge(&mut self, f: MergeFn) -> () {
         self.tree.set_merge_operator(f); // 使用typed_sled的merge方法
-        Ok(())
     }
 
     /// Merge a delta to a value(index by given eid) in Prop.
@@ -288,26 +288,29 @@ impl<'p> PropStorage for Prop<'p> {
     /// ```
     ///
     fn merge(&self, eid: &EID, delta: Delta) -> () {
-        let new = self.tree.merge(&eid, &delta).expect("没有注册merge函数");
+        let new = self.tree.merge(&eid, &delta).unwrap();
         self.cache.insert(*eid, new);
     }
 
-    fn register_tick(&mut self, f: TickFn) -> Result<(), Error> {
+    /// See more in [`crate::method::TickFn`]
+    fn register_tick(&mut self, f: TickFn) -> () {
         self.tick_method = f;
-        Ok(())
     }
 
+    /// Tick all entity.
+    /// 
+    /// Tick actions is launched in parellar, by calling tick method using (&EID, Value, &Self)
+    /// The result delta of every tick is auto merged.
+    /// 
+    /// See more in [`crate::method::TickFn`]
     fn tick(&self) {
-        // 存在prop属性的bucket
-        for i in self.tree.iter() {
-            // 遍历bucket
+        self.tree.iter().par_bridge().for_each(|i| {
             if let Ok((eid, value)) = i {
-                // 成功获取eid和value
-                if let Some(result) = (self.tick_method)(eid, value, self) {
-                    // 成功调用tick方法
-                    let _ = self.tree.merge(&eid, &result); // 合并结果
+                let result = (self.tick_method)(&eid, value, self);
+                if let Some(delta) = result {
+                    self.merge(&eid, delta);
                 }
             }
-        }
+        })
     }
 }

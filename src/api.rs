@@ -1,9 +1,8 @@
-/// A set of trait that defines the behavior of database and property storage.
+//! A set of trait that defines the behavior of database and property storage.
 use std::sync::Arc;
 
 use crate::{
     basic::{Delta, Value, EID},
-    error::Error,
     method::{MergeFn, TickFn},
 };
 
@@ -11,30 +10,53 @@ use crate::{
 ///
 /// 'prop' means that the storage is only for one property.
 pub trait PropStorage {
-    /// 获取存储的名称
+    /// Get name of prop.
     fn name(&self) -> &str;
 
-    /// 获取eid的属性
+    /// Get entity's value. None if not exists. 
+    /// 
+    /// Thread safe.
     fn get(&self, eid: &EID) -> Option<Value>;
 
-    /// 为eid的prop属性设置一个数值
+    /// Set a value for entity. 
+    /// 
+    /// Return the raw value if retrieve is true.
+    /// Return None if retrieve is false.
+    /// 
+    /// Thread safe.
     fn set(&self, eid: &EID, value: Value, retrieve: bool) -> Option<Value>;
 
-    /// 删除eid的属性，
-    /// kv实现内部可变性
+    /// Delete a entity's value.
+    /// 
+    /// Return the raw value if retrieve is true.
+    /// Return None if retrieve is false.
+    /// 
+    /// Thread safe.
     fn remove(&self, eid: &EID, retrieve: bool) -> Option<Value>;
 
-    /// 注册merge函数，如果`prop`不存在，则将返回一个`Error::PropError`
-    fn register_merge(&mut self, f: MergeFn) -> Result<(), Error>;
+    /// Register merge method.
+    /// Always cover the old one.
+    /// 
+    /// See more in [`crate::method::MergeFn`]
+    fn register_merge(&mut self, f: MergeFn) -> ();
 
-    /// 使用merge函数合并属性，
-    /// 为最大化性能抛弃所有结果
+    /// Call the merge function to merge a Delta(alias for Value) into an exist value.
+    /// 
+    /// The behavior is defined by the MergeFn registed when eid is not exist.
+    /// A PropStorage always holds a merge method.
     fn merge(&self, eid: &EID, delta: Delta) -> ();
 
-    /// 注册一个tick函数，如果`prop`不存在，则将返回一个`Error::PropError`
-    fn register_tick(&mut self, f: TickFn) -> Result<(), Error>;
+    /// Register prop-level tick method.
+    /// Always cover the old one.
+    /// 
+    /// See more in [`crate::method::TickFn`]
+    fn register_tick(&mut self, f: TickFn) -> ();
 
-    /// 调用一个prop上的tick方法
+    /// Call the tick function to update the whole prop.
+    /// 
+    /// Will call the tick function for every 
+    /// registed when eid is not exist.
+    /// A PropStorage always holds a merge method.
     fn tick(&self);
 
     // TODO: 添加批量merge操作

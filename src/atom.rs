@@ -1,4 +1,4 @@
-/// Atom, Abstract Data Type
+//! ATOM, Atomic Type Object Model
 use crate::basic::{Marker, Value, EID};
 use serde::{Deserialize, Serialize};
 
