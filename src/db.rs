@@ -107,7 +107,7 @@ impl PropStorage for Prop {
     /// // create a temporary database to avoid old disk file polution.
     /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
     /// // create a prop with non-bound method.
-    /// let prop = db.create_prop("test_int", |_, _, _| None, |_,_,_|None);
+    /// let prop = db.create_prop("test_int".into(), |_, _, _| None, |_,_,_|None);
     ///
     /// // Example eid is 1.
     /// let eid = EID::new(1);
@@ -147,9 +147,9 @@ impl PropStorage for Prop {
     ///
     ///
     /// // create a temporary database to avoid old disk file polution.
-    /// let mut db = Database::new(Config::default().temporary(false)).unwrap();
+    /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
     /// // create a prop with non-bound method.
-    /// let prop = db.create_prop("test_int", |_, _, _| None, |_,_,_|None);
+    /// let prop = db.create_prop("test_int".into(), |_, _, _| None, |_,_,_|None);
     ///
     /// let eid = EID::new(1);
     /// // Set a Int(8) for eid(1) and get it.
@@ -191,7 +191,7 @@ impl PropStorage for Prop {
     /// // create a temporary database to avoid old disk file polution.
     /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
     /// // create a prop with non-bound method.
-    /// let prop = db.create_prop("test_int", |_, _, _| None, |_,_,_| None);
+    /// let prop = db.create_prop("test_int".into(), |_, _, _| None, |_,_,_| None);
     ///
     /// // Set a value for eid(1) and eid(2) in prop.
     /// prop.set(&EID::new(1), Value::Int(42), false);
@@ -263,7 +263,7 @@ impl PropStorage for Prop {
     /// // create a temporary database to avoid old disk file polution.
     /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
     /// // create a prop with int_add_merge and non-tick method.
-    /// let prop = db.create_prop("test_int", int_add_merge, |_,_,_| None);
+    /// let prop = db.create_prop("test_int".into(), int_add_merge, |_,_,_| None);
     ///
     /// // Set some value first.
     /// prop.set(&EID::new(1), Value::Int(42), false);
