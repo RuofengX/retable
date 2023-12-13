@@ -157,40 +157,38 @@ fn write_str_into<const N: usize>(raw: &str) -> [u8; N] {
         buf[..len].copy_from_slice(&raw.as_bytes()[..len]);
     } else {
         // if len > limit -> truncate, copy all bytes.
-        let trunc_str = truncate_utf8(raw, limit);
-        buf.copy_from_slice(trunc_str);
+        let (len,trunc_str) = truncate_utf8(raw, limit);
+        buf[..len].copy_from_slice(trunc_str);
     }
     buf
 }
 
 /// Convert utf8 string from a buffer
-/// 
+///
 /// Drop all U+0000 and other bad thing.
 /// Just read utf8 code before invalid occurs.
 fn read_str_from<'t, T: AsRef<[u8]>>(buf: &'t T) -> &'t str {
     let buf = buf.as_ref();
-    match std::str::from_utf8(buf) {
+    let rtn = match std::str::from_utf8(buf) {
         Ok(s) => s,
         Err(e) => unsafe { std::str::from_utf8_unchecked(&buf[..e.valid_up_to()]) },
-    }
+    };
+    rtn.trim_end_matches('\0')
 }
 
 /// max_length must <= s.len()
 #[inline]
-fn truncate_utf8(s: &str, max_length: usize) -> &[u8] {
-    let len = s.len();
-    let mut cut_index_r = 0;
-
-    let max_length_r = len - max_length;
+fn truncate_utf8(s: &str, max_length: usize) -> (usize, &[u8]) {
+    let mut cut_index = 0;
 
     for (i, _) in s.char_indices().rev() {
-        if i <= max_length_r {
-            cut_index_r = i;
+        if i <= max_length {
+            cut_index = i;
             break;
         }
     }
 
-    &s.as_bytes()[..(len - cut_index_r)]
+    (cut_index, &s.as_bytes()[..cut_index])
 }
 
 #[cfg(test)]
@@ -202,25 +200,26 @@ mod tests {
         // Test case 1: String length is less than max_length
         let s1 = "Hello, World!";
         let max_length1 = 1;
-        assert_eq!(truncate_utf8(s1, max_length1), "H".as_bytes());
+        assert_eq!(truncate_utf8(s1, max_length1), (1,"H".as_bytes()));
 
         // Test case 2: String length is equal to max_length
         let s2 = "Hello, World!";
         let max_length2 = 3;
-        assert_eq!(truncate_utf8(s2, max_length2), "Hel".as_bytes());
+        assert_eq!(truncate_utf8(s2, max_length2), (3, "Hel".as_bytes()));
 
         // Test case 3: String length is greater than max_length
         let s3 = "Hello, World!";
         let max_length3 = 5;
         let expected_result3 = "Hello".as_bytes();
-        assert_eq!(truncate_utf8(s3, max_length3), expected_result3);
+        assert_eq!(truncate_utf8(s3, max_length3), (5, expected_result3));
 
         // Test case 4: String contains multi-byte characters
         let s4 = "你好，世界！";
         let max_length4 = 6;
         let expected_result4 = "你好".as_bytes();
-        assert_eq!(truncate_utf8(s4, max_length4), expected_result4);
+        assert_eq!(truncate_utf8(s4, max_length4), (6, expected_result4));
     }
+
     #[test]
     fn test_write_str_into() {
         // Test with a string that fits within the buffer
@@ -236,11 +235,63 @@ mod tests {
         assert_eq!(&buffer, "こん".as_bytes());
 
         // Test with a string that is longer than the buffer
-        let buffer  = write_str_into::<10>("This string is longer than the buffer length");
+        let buffer = write_str_into::<10>("This string is longer than the buffer length");
         assert_eq!(&buffer, "This strin".as_bytes());
 
         // Test with an empty string
         let buffer = write_str_into::<0>("");
         assert_eq!(&buffer[..0], "".as_bytes());
+    }
+
+    #[test]
+    fn test_marker_new() {
+        let marker = Marker::new("Hello, World!");
+        assert_eq!(marker.0, "Hello, World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0".as_bytes());
+
+        let marker = Marker::new("你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界");
+        assert_eq!(marker.0, "你好世界你好世界你好\0".as_bytes());
+
+        let marker = Marker::new("你好世界");
+        assert_eq!(marker.0, "你好世界\0\0\0\0\0\0\0\0\0\0\0\0\0".as_bytes());
+    }
+
+    #[test]
+    fn test_marker_eq(){
+        let marker1 = Marker::new("Hello, World!");
+        let marker2 = Marker::new("Hello, World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+        let marker3 = Marker::new("Hello, World!\0\0\0");
+        assert_eq!(marker1, marker2);
+        assert_eq!(marker1, marker3);
+        assert_eq!(marker2, marker3);
+
+        let marker4 = Marker::new("Hello,\0 World!");
+        let marker5 = Marker::new("Hello,\0 World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0你好");
+        assert_eq!(marker4, marker5);
+    }
+
+    #[test]
+    fn test_marker_from() {
+        let marker = Marker::from("Hello, World!");
+        assert_eq!(marker, Marker::new("Hello, World!"));
+
+        let long_string =
+            "This is a very long string that exceeds the maximum length of 31 characters.";
+        let marker = Marker::from(long_string);
+        assert_eq!(marker.as_ref(), "This is a very long string that");
+    }
+
+    #[test]
+    fn test_marker_as_ref() {
+        let marker = Marker::new("Hello, World!");
+        assert_eq!(marker.as_ref(), "Hello, World!");
+
+        let marker = Marker::new("a你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界");
+        assert_eq!(marker.as_ref(), "a你好世界你好世界你好"); // len = 31
+
+        let marker = Marker::new("aa你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界");
+        assert_eq!(marker.as_ref(), "aa你好世界你好世界你"); // len = 29
+
+        let marker = Marker::new("你好世界");
+        assert_eq!(marker.as_ref(), "你好世界");
     }
 }
