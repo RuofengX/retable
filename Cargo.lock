@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "retable"
-version = "0.6.2-r3"
+version = "0.6.2"
 dependencies = [
  "bincode 2.0.0-rc.3",
  "enum_dispatch",

@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn test_marker_eq(){
         let marker1 = Marker::new("Hello, World!");
-        let marker2 = Marker::new("Hello, World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+        let marker2 = Marker::new("Hello, World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
         let marker3 = Marker::new("Hello, World!\0\0\0");
         assert_eq!(marker1, marker2);
         assert_eq!(marker1, marker3);
