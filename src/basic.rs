@@ -142,32 +142,63 @@ impl AsRef<str> for PropTag {
 
 /// Write a string into a limited length buffer.
 #[inline]
-fn write_str_into<T: AsMut<[u8]>>(raw: &str, mut buf: T) {
-    let len = buf.as_mut().len();
-    let limit = buf.as_mut().len();
+fn write_str_into<T: AsMut<[u8]>>(raw: &str, buf: &mut T) {
+    let buf = buf.as_mut();
+    let len = buf.len();
+    let limit = buf.len();
 
     if len <= limit {
-        buf.as_mut().copy_from_slice(&raw.as_bytes()[..limit]);
+        buf.copy_from_slice(&raw.as_bytes()[..limit]);
     } else {
         let trunc_str = truncate_utf8(raw, limit);
-        buf.as_mut().copy_from_slice(trunc_str);
+        buf.copy_from_slice(trunc_str);
     }
 }
 
+/// max_length must <= s.len()
 #[inline]
-fn truncate_utf8(s: &str, max_length: usize) -> &[u8]{
-    let mut char_count = 0;
-    let mut byte_count = 0;
+fn truncate_utf8(s: &str, max_length: usize) -> &[u8] {
+    let len = s.len();
+    let mut cut_index_r = 0;
 
-    for (i, _) in s.char_indices() {
-        char_count += 1;
-        byte_count = i + 1;
+    let max_length_r = len - max_length;
 
-        if char_count > max_length || !s.is_char_boundary(i + 1) {
+    for (i, _) in s.char_indices().rev() {
+        if i <= max_length_r {
+            cut_index_r = i;
             break;
         }
     }
 
-    &s.as_bytes()[..byte_count]
-    todo!("test needed");
+    &s.as_bytes()[..(len - cut_index_r)]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_truncate_utf8() {
+        // Test case 1: String length is less than max_length
+        let s1 = "Hello, World!";
+        let max_length1 = 1;
+        assert_eq!(truncate_utf8(s1, max_length1), "H".as_bytes());
+
+        // Test case 2: String length is equal to max_length
+        let s2 = "Hello, World!";
+        let max_length2 = 3;
+        assert_eq!(truncate_utf8(s2, max_length2), "Hel".as_bytes());
+
+        // Test case 3: String length is greater than max_length
+        let s3 = "Hello, World!";
+        let max_length3 = 5;
+        let expected_result3 = "Hello".as_bytes();
+        assert_eq!(truncate_utf8(s3, max_length3), expected_result3);
+
+        // Test case 4: String contains multi-byte characters
+        let s4 = "你好，世界！";
+        let max_length4 = 6;
+        let expected_result4 = "你好".as_bytes();
+        assert_eq!(truncate_utf8(s4, max_length4), expected_result4);
+    }
 }
