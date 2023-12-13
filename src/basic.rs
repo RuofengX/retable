@@ -98,14 +98,14 @@ impl From<&str> for Marker {
     /// Create a marked value from info string.
     /// Return an Error when the length of str is greater than 31
     fn from(value: &str) -> Self {
-        let v = write_str::<31>(value);
+        let v = write_str_into::<31>(value);
         Marker(v)
     }
 }
 
 impl AsRef<str> for Marker {
     fn as_ref(&self) -> &str {
-        unsafe { std::str::from_utf8_unchecked(&self.0) }
+        read_str_from(&self.0)
     }
 }
 
@@ -127,20 +127,20 @@ impl From<&str> for PropTag {
     /// Create a prop tag from string.
     /// Drop any character beyond 8.
     fn from(value: &str) -> Self {
-        let v = write_str::<8>(value);
+        let v = write_str_into::<8>(value);
         PropTag(v)
     }
 }
 
 impl AsRef<str> for PropTag {
     fn as_ref(&self) -> &str {
-        unsafe { std::str::from_utf8_unchecked(&self.0) }
+        read_str_from(&self.0)
     }
 }
 
 /// Write a string into a limited length buffer.
 #[inline]
-fn write_str<const N: usize>(raw: &str) -> [u8; N] {
+fn write_str_into<const N: usize>(raw: &str) -> [u8; N] {
     // init with 0, U+0000 equals to BLANK.
     let mut buf = [0u8; N];
     // the raw length.
@@ -161,6 +161,18 @@ fn write_str<const N: usize>(raw: &str) -> [u8; N] {
         buf.copy_from_slice(trunc_str);
     }
     buf
+}
+
+/// Convert utf8 string from a buffer
+/// 
+/// Drop all U+0000 and other bad thing.
+/// Just read utf8 code before invalid occurs.
+fn read_str_from<'t, T: AsRef<[u8]>>(buf: &'t T) -> &'t str {
+    let buf = buf.as_ref();
+    match std::str::from_utf8(buf) {
+        Ok(s) => s,
+        Err(e) => unsafe { std::str::from_utf8_unchecked(&buf[..e.valid_up_to()]) },
+    }
 }
 
 /// max_length must <= s.len()
@@ -212,23 +224,23 @@ mod tests {
     #[test]
     fn test_write_str_into() {
         // Test with a string that fits within the buffer
-        let buffer = write_str::<5>("Hello");
+        let buffer = write_str_into::<5>("Hello");
         assert_eq!(&buffer, b"Hello");
 
         // Test with a string that needs truncation
-        let buffer = write_str::<6>("世界你好");
+        let buffer = write_str_into::<6>("世界你好");
         assert_eq!(&buffer, "世界".as_bytes());
 
         // Test with a string that needs truncation and includes multi-byte characters
-        let buffer = write_str::<6>("こんにちは");
+        let buffer = write_str_into::<6>("こんにちは");
         assert_eq!(&buffer, "こん".as_bytes());
 
         // Test with a string that is longer than the buffer
-        let buffer  = write_str::<10>("This string is longer than the buffer length");
+        let buffer  = write_str_into::<10>("This string is longer than the buffer length");
         assert_eq!(&buffer, "This strin".as_bytes());
 
         // Test with an empty string
-        let buffer = write_str::<0>("");
+        let buffer = write_str_into::<0>("");
         assert_eq!(&buffer[..0], "".as_bytes());
     }
 }
