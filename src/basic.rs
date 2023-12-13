@@ -98,8 +98,7 @@ impl From<&str> for Marker {
     /// Create a marked value from info string.
     /// Return an Error when the length of str is greater than 31
     fn from(value: &str) -> Self {
-        let mut v: [u8; 31] = [0; 31];
-        write_str_into(value, &mut v);
+        let v = write_str::<31>(value);
         Marker(v)
     }
 }
@@ -128,8 +127,7 @@ impl From<&str> for PropTag {
     /// Create a prop tag from string.
     /// Drop any character beyond 8.
     fn from(value: &str) -> Self {
-        let mut v = [0u8; 8];
-        write_str_into(value, &mut v);
+        let v = write_str::<8>(value);
         PropTag(v)
     }
 }
@@ -142,17 +140,27 @@ impl AsRef<str> for PropTag {
 
 /// Write a string into a limited length buffer.
 #[inline]
-fn write_str_into<T: AsMut<[u8]>>(raw: &str, buf: &mut T) {
-    let buf = buf.as_mut();
-    let len = buf.len();
-    let limit = buf.len();
+fn write_str<const N: usize>(raw: &str) -> [u8; N] {
+    // init with 0, U+0000 equals to BLANK.
+    let mut buf = [0u8; N];
+    // the raw length.
+    let len = raw.len();
+    // the target length.
+    let limit = N;
 
-    if len <= limit {
-        buf.copy_from_slice(&raw.as_bytes()[..limit]);
+    if len == limit {
+        // if len == limit -> no need to truncate, just copy.
+        buf.copy_from_slice(&raw.as_bytes());
+    } else if len < limit {
+        // if len < limit -> no need to truncate, copy first len bytes.
+        // rest bytes is set to 0.
+        buf[..len].copy_from_slice(&raw.as_bytes()[..len]);
     } else {
+        // if len > limit -> truncate, copy all bytes.
         let trunc_str = truncate_utf8(raw, limit);
         buf.copy_from_slice(trunc_str);
     }
+    buf
 }
 
 /// max_length must <= s.len()
@@ -200,5 +208,27 @@ mod tests {
         let max_length4 = 6;
         let expected_result4 = "你好".as_bytes();
         assert_eq!(truncate_utf8(s4, max_length4), expected_result4);
+    }
+    #[test]
+    fn test_write_str_into() {
+        // Test with a string that fits within the buffer
+        let buffer = write_str::<5>("Hello");
+        assert_eq!(&buffer, b"Hello");
+
+        // Test with a string that needs truncation
+        let buffer = write_str::<6>("世界你好");
+        assert_eq!(&buffer, "世界".as_bytes());
+
+        // Test with a string that needs truncation and includes multi-byte characters
+        let buffer = write_str::<6>("こんにちは");
+        assert_eq!(&buffer, "こん".as_bytes());
+
+        // Test with a string that is longer than the buffer
+        let buffer  = write_str::<10>("This string is longer than the buffer length");
+        assert_eq!(&buffer, "This strin".as_bytes());
+
+        // Test with an empty string
+        let buffer = write_str::<0>("");
+        assert_eq!(&buffer[..0], "".as_bytes());
     }
 }
