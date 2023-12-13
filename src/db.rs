@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     api::{AtomStorage, PropStorage},
-    basic::{Delta, Value, EID, PropTag},
+    basic::{Delta, PropTag, Value, EID},
     error::Error,
     method::{MergeFn, TickFn},
 };
@@ -94,7 +94,7 @@ impl Prop {
 
 impl PropStorage for Prop {
     /// Return the name of this Prop.
-    fn name(&self) -> PropTag{
+    fn name(&self) -> PropTag {
         self.name
     }
 

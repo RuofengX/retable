@@ -157,7 +157,7 @@ fn write_str_into<const N: usize>(raw: &str) -> [u8; N] {
         buf[..len].copy_from_slice(&raw.as_bytes()[..len]);
     } else {
         // if len > limit -> truncate, copy all bytes.
-        let (len,trunc_str) = truncate_utf8(raw, limit);
+        let (len, trunc_str) = truncate_utf8(raw, limit);
         buf[..len].copy_from_slice(trunc_str);
     }
     buf
@@ -200,7 +200,7 @@ mod tests {
         // Test case 1: String length is less than max_length
         let s1 = "Hello, World!";
         let max_length1 = 1;
-        assert_eq!(truncate_utf8(s1, max_length1), (1,"H".as_bytes()));
+        assert_eq!(truncate_utf8(s1, max_length1), (1, "H".as_bytes()));
 
         // Test case 2: String length is equal to max_length
         let s2 = "Hello, World!";
@@ -246,9 +246,13 @@ mod tests {
     #[test]
     fn test_marker_new() {
         let marker = Marker::new("Hello, World!");
-        assert_eq!(marker.0, "Hello, World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0".as_bytes());
+        assert_eq!(
+            marker.0,
+            "Hello, World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0".as_bytes()
+        );
 
-        let marker = Marker::new("你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界");
+        let marker =
+            Marker::new("你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界");
         assert_eq!(marker.0, "你好世界你好世界你好\0".as_bytes());
 
         let marker = Marker::new("你好世界");
@@ -256,16 +260,19 @@ mod tests {
     }
 
     #[test]
-    fn test_marker_eq(){
+    fn test_marker_eq() {
         let marker1 = Marker::new("Hello, World!");
-        let marker2 = Marker::new("Hello, World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+        let marker2 = Marker::new(
+            "Hello, World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+        );
         let marker3 = Marker::new("Hello, World!\0\0\0");
         assert_eq!(marker1, marker2);
         assert_eq!(marker1, marker3);
         assert_eq!(marker2, marker3);
 
         let marker4 = Marker::new("Hello,\0 World!");
-        let marker5 = Marker::new("Hello,\0 World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0你好");
+        let marker5 =
+            Marker::new("Hello,\0 World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0你好");
         assert_eq!(marker4, marker5);
     }
 
@@ -285,10 +292,14 @@ mod tests {
         let marker = Marker::new("Hello, World!");
         assert_eq!(marker.as_ref(), "Hello, World!");
 
-        let marker = Marker::new("a你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界");
+        let marker = Marker::new(
+            "a你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界",
+        );
         assert_eq!(marker.as_ref(), "a你好世界你好世界你好"); // len = 31
 
-        let marker = Marker::new("aa你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界");
+        let marker = Marker::new(
+            "aa你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界你好世界",
+        );
         assert_eq!(marker.as_ref(), "aa你好世界你好世界你"); // len = 29
 
         let marker = Marker::new("你好世界");

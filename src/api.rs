@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use crate::{
-    basic::{Delta, Value, EID, PropTag},
+    basic::{Delta, PropTag, Value, EID},
     method::{MergeFn, TickFn},
 };
 
@@ -70,8 +70,6 @@ pub trait AtomStorage {
     ///
     /// Return None if not exist.
     fn get_prop(&self, prop: &PropTag) -> Option<Arc<dyn PropStorage>>;
-
-
 
     /// If already exists, return the old data but register new method.
     fn create_prop(&mut self, prop: PropTag, merge: MergeFn, tick: TickFn) -> Arc<dyn PropStorage>;

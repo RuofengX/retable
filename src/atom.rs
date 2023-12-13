@@ -18,28 +18,28 @@ impl Index {
 }
 
 /// Atom, abstruct type object model.
-/// 
+///
 /// Bincode version 2 is needed for correct enum serialize,
 /// see more in [bincode-org/bincode](https://github.com/bincode-org/bincode/tree/trunk#why-does-bincode-not-respect-repru8)
-/// 
+///
 ///# Example
 /// ```rust
-/// 
+///
 /// use std::fs::File;
 /// use std::io::Write;
 /// use retable::atom::Atom;
 /// use retable::basic::{EID, PropTag, Value, Marker};
-/// 
+///
 /// let a = Atom{eid:EID::new(1), prop:PropTag::new("god"), value:Value::Mark(Marker::new("HELLO_WORLD这是UTF88芭芭芭芭芭"))};
 /// let buf = bincode::serde::encode_to_vec::<Atom, bincode::config::Configuration>(a, bincode::config::Configuration::default()).unwrap();
-/// 
+///
 /// // 创建一个文件并打开以写入模式
 /// let mut file = File::create("output.atom").expect("无法创建文件");
 /// // 将字符串写入文件
 /// file.write_all(&buf).expect("写入文件时出错");
-/// 
+///
 /// ```
-/// 
+///
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Atom {
     pub eid: EID,
