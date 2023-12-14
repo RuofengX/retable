@@ -2,3 +2,4 @@
 *.ron*
 /db/
 default.sled
+firedbg
