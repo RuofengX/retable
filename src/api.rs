@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::{
     basic::{Delta, PropTag, Value, EID},
-    method::{MergeFn, TickFn},
+    method::{MergeOp, TickFn},
 };
 
 /// A trait that defines the behavior of property storage.
@@ -38,7 +38,7 @@ pub trait PropStorage: Sync + Send {
     /// Always cover the old one.
     ///
     /// See more in [`crate::method::MergeFn`]
-    fn register_merge(&mut self, f: MergeFn) -> ();
+    fn register_merge(&mut self, f: MergeOp) -> ();
 
     /// Call the merge function to merge a Delta(alias for Value) into an exist value.
     ///
@@ -50,7 +50,7 @@ pub trait PropStorage: Sync + Send {
     /// Always cover the old one.
     ///
     /// See more in [`crate::method::TickFn`]
-    fn register_tick(&mut self, f: TickFn) -> ();
+    fn register_tick(&mut self, f: Arc<TickFn>) -> ();
 
     /// Call the tick function to update the whole prop.
     ///
@@ -72,5 +72,5 @@ pub trait AtomStorage {
     fn get_prop(&self, prop: &PropTag) -> Option<Arc<dyn PropStorage>>;
 
     /// If already exists, return the old data but register new method.
-    fn create_prop(&mut self, prop: PropTag, merge: MergeFn, tick: TickFn) -> Arc<dyn PropStorage>;
+    fn create_prop(&mut self, prop: PropTag, merge: MergeOp, tick: Arc<TickFn>) -> Arc<dyn PropStorage>;
 }

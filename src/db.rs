@@ -6,7 +6,7 @@ use crate::{
     api::{AtomStorage, PropStorage},
     basic::{Delta, PropTag, Value, EID},
     error::Error,
-    method::{MergeFn, TickFn},
+    method::{MergeOp, TickFn},
 };
 
 use moka::sync::Cache;
@@ -54,8 +54,8 @@ impl AtomStorage for Database {
     fn create_prop(
         &mut self,
         prop_name: PropTag,
-        merge: MergeFn,
-        tick: TickFn,
+        merge: MergeOp,
+        tick: Arc<TickFn>,
     ) -> Arc<dyn PropStorage> {
         let prop = self
             .props
@@ -72,7 +72,7 @@ impl AtomStorage for Database {
 pub struct Prop {
     name: PropTag,
     tree: Tree<EID, Value>,
-    tick_method: TickFn,
+    tick_method: Arc<TickFn>,
     cache: Cache<EID, Option<Value>>,
 }
 impl Prop {
@@ -80,7 +80,7 @@ impl Prop {
     ///
     /// Note that the merge method is necessary,
     /// if not used, just invoke an empty closure like `|_,_,_|None`.
-    pub fn new(db: &Db, name: PropTag, tick: TickFn, merge: MergeFn) -> Self {
+    pub fn new(db: &Db, name: PropTag, tick: Arc<TickFn>, merge: MergeOp) -> Self {
         let mut rtn = Self {
             name: name.clone(),
             tree: Tree::<EID, Value>::open::<PropTag>(db, name),
@@ -227,7 +227,7 @@ impl PropStorage for Prop {
 
     /// Register a merge function for Prop.
     /// See [Prop::merge] for more.
-    fn register_merge(&mut self, f: MergeFn) -> () {
+    fn register_merge(&mut self, f: MergeOp) -> () {
         self.tree.set_merge_operator(f); // 使用typed_sled的merge方法
     }
 
@@ -293,7 +293,7 @@ impl PropStorage for Prop {
     }
 
     /// See more in [`crate::method::TickFn`]
-    fn register_tick(&mut self, f: TickFn) -> () {
+    fn register_tick(&mut self, f: Arc<TickFn>) -> () {
         self.tick_method = f;
     }
 
