@@ -15,7 +15,7 @@ use crate::basic::{Delta, Value, EID};
 /// # Return
 /// - `Option<Value>`: The new value after merge. Option::None if the value is deleted.
 ///
-pub type MergeFn = fn(eid: EID, old: Option<Value>, delta: Delta) -> Option<Value>;
+pub type MergeFn = dyn FnMut(EID, Option<Value>, Delta) -> Option<Value> + Send + Sync;
 
 /// Tick method
 /// Designed to apply the change to a value.
@@ -44,4 +44,4 @@ pub type MergeFn = fn(eid: EID, old: Option<Value>, delta: Delta) -> Option<Valu
 /// # Return
 /// - `Option::<Delta>`: The new delta after tick. Option::None if stays the same (takes no effect).
 ///
-pub type TickFn = fn(eid: &EID, value: Value, prop: &dyn crate::api::PropStorage) -> Option<Delta>;
+pub type TickFn = dyn FnMut(&EID, Value, &dyn crate::api::PropStorage) -> Option<Delta> + Send + Sync;
