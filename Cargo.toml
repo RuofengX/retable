@@ -14,10 +14,7 @@ repository = "https://github.com/RuofengX/retable"
 
 [dependencies]
 bincode = { version = "2.0.0-rc", default-features = false, features = ["std", "serde", "alloc"] }
-enum_dispatch = "0.3.12"
 moka = { version = "0.12.1", features = ["sync"] }
 rayon = "1.8.0"
-serde = { version = "1.0.189", features = ["derive"] }
-sled = "0.34.7"
+serde = { version = "1.0.193", features = ["derive"] }
 thiserror = "1.0.50"
-typed-sled = "0.2.3"

@@ -11,10 +11,6 @@ pub enum Error {
     #[error("Key [{0}] not exists.")]
     KeyError(String),
 
-    /// 底层数据库错误
-    #[error("Error from sled database.")]
-    SledError(#[from] sled::Error),
-
     /// 溢出错误
     #[error("Error when fmt str into marker.")]
     OverflowError,

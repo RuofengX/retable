@@ -10,12 +10,7 @@
 //! * Persistent, check [`sled::Config`] to learn more about the database.
 //!
 
-pub mod api;
 pub mod atom;
-pub mod basic;
-pub mod db;
 pub mod error;
-pub mod method;
-
-pub use db::{Database, Prop};
-pub use sled::Config;
+pub mod db;
+pub mod tree;
