@@ -1,12 +1,13 @@
 //! The core module
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use std::{collections::BTreeMap, sync::Arc};
+use std::rc::Rc;
+use std::{collections::BTreeMap, marker::PhantomData, sync::Arc};
 
 use crate::{
     api::{AtomStorage, PropStorage},
     basic::{Delta, PropTag, Value, EID},
     error::Error,
-    method::{MergeOp, TickFn},
+    method::{MergeFn, TickFn},
 };
 
 use moka::sync::Cache;
@@ -15,12 +16,14 @@ use sled::Db;
 use typed_sled::Tree;
 
 /// As the name says.
-pub struct Database {
+pub struct Database
+{
     db: Db,
-    props: BTreeMap<PropTag, Arc<dyn PropStorage>>,
+    props: BTreeMap<PropTag, Rc<Prop>>,
 }
 
-impl Database {
+impl Database
+{
     /// Create a new database.
     ///
     /// Using sled config. See more in [`Config`]
@@ -32,7 +35,8 @@ impl Database {
     }
 }
 
-impl Default for Database {
+impl Default for Database
+{
     fn default() -> Database {
         Database {
             db: Config::default()
@@ -46,21 +50,26 @@ impl Default for Database {
     }
 }
 
-impl AtomStorage for Database {
-    fn get_prop(&self, prop: &PropTag) -> Option<Arc<dyn PropStorage>> {
-        self.props.get(prop).map(|x| x.clone())
+impl AtomStorage for Database
+{
+    fn get_prop(&self, prop: &PropTag) -> Option<Rc<dyn PropStorage>> {
+        if let Some(rtn) = self.props.get(prop).map(|x| x.clone()) {
+            Some(rtn as Rc<dyn PropStorage>)
+        } else {
+            None
+        }
     }
 
     fn create_prop(
         &mut self,
         prop_name: PropTag,
-        merge: MergeOp,
-        tick: Arc<TickFn>,
-    ) -> Arc<dyn PropStorage> {
+        merge: Box<dyn MergeFn>,
+        tick: Box<dyn TickFn>,
+    ) -> Rc<dyn PropStorage> {
         let prop = self
             .props
             .entry(prop_name.clone())
-            .or_insert_with(|| Arc::new(Prop::new(&self.db, prop_name, tick, merge)))
+            .or_insert_with(|| Rc::new(Prop::new(&self.db, prop_name, merge, tick)))
             .clone();
         prop
     }
@@ -72,27 +81,29 @@ impl AtomStorage for Database {
 pub struct Prop {
     name: PropTag,
     tree: Tree<EID, Value>,
-    tick_method: Arc<TickFn>,
+    tick_method: Arc<dyn TickFn>,
     cache: Cache<EID, Option<Value>>,
 }
-impl Prop {
+impl Prop
+{
     /// Create a new Prop.
     ///
     /// Note that the merge method is necessary,
     /// if not used, just invoke an empty closure like `|_,_,_|None`.
-    pub fn new(db: &Db, name: PropTag, tick: Arc<TickFn>, merge: MergeOp) -> Self {
+    pub fn new(db: &Db, name: PropTag, merge: Box<dyn MergeFn>, tick: Box<dyn TickFn>) -> Self {
         let mut rtn = Self {
             name: name.clone(),
             tree: Tree::<EID, Value>::open::<PropTag>(db, name),
-            tick_method: tick,
+            tick_method: tick.into(),
             cache: Cache::builder().max_capacity(1024 * 1024).build(),
         };
-        rtn.register_merge(merge);
+        rtn.register_merge(merge.into());
         rtn
     }
 }
 
-impl PropStorage for Prop {
+impl PropStorage for Prop
+{
     /// Return the name of this Prop.
     fn name(&self) -> PropTag {
         self.name
@@ -227,8 +238,8 @@ impl PropStorage for Prop {
 
     /// Register a merge function for Prop.
     /// See [Prop::merge] for more.
-    fn register_merge(&mut self, f: MergeOp) -> () {
-        self.tree.set_merge_operator(f); // 使用typed_sled的merge方法
+    fn register_merge(&mut self, f: Arc<dyn MergeFn>) -> () {
+        self.tree.set_merge_operator(*f)// 使用typed_sled的merge方法
     }
 
     /// Merge a delta to a value(index by given eid) in Prop.
@@ -293,7 +304,7 @@ impl PropStorage for Prop {
     }
 
     /// See more in [`crate::method::TickFn`]
-    fn register_tick(&mut self, f: Arc<TickFn>) -> () {
+    fn register_tick(&mut self, f: Arc<dyn TickFn>) -> () {
         self.tick_method = f;
     }
 
