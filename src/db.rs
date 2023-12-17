@@ -69,9 +69,7 @@ impl Database {
     }
 }
 
-/// The level-2 storage beneath Database, which impl [`crate::api::PropStorage`].
-///
-/// It returned by [`Database::create_prop`] or [`Database::get_prop`].
+/// The level-2 storage beneath Database
 pub struct Prop {
     name: PropTag,
     tree: Tree<EID, Value>,
@@ -105,7 +103,7 @@ impl Prop {
     ///
     /// # Example
     /// ```rust
-    /// use retable::{Database, Config, basic::{EID, Value}, api::{AtomStorage, PropStorage}};
+    /// use retable::{Database, Config, basic::{EID, Value}};
     ///
     /// // create a temporary database to avoid old disk file polution.
     /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
@@ -146,7 +144,7 @@ impl Prop {
     ///
     /// # Example
     /// ```rust
-    /// use retable::{Database, Config, basic::{EID, Value}, api::{AtomStorage, PropStorage}};
+    /// use retable::{Database, Config, basic::{EID, Value}};
     ///
     ///
     /// // create a temporary database to avoid old disk file polution.
@@ -189,7 +187,7 @@ impl Prop {
     ///
     /// # Example
     /// ```rust
-    /// use retable::{Database, Config, basic::{EID, Value}, api::{AtomStorage, PropStorage}};
+    /// use retable::{Database, Config, basic::{EID, Value}};
     ///
     /// // create a temporary database to avoid old disk file polution.
     /// let mut db = Database::new(Config::default().temporary(true)).unwrap();
@@ -238,7 +236,7 @@ impl Prop {
     ///
     /// # Example
     /// ```rust
-    /// use retable::{Database, Config, basic::{EID, Value, Delta}, api::{AtomStorage, PropStorage}};
+    /// use retable::{Database, Config, basic::{EID, Value, Delta}};
     ///
     /// // First define a merge function,
     /// // which merge a delta value int into the old value by addition, and return the new value.

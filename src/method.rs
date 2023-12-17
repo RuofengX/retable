@@ -6,7 +6,7 @@ use crate::{
 };
 use typed_sled::MergeOperator;
 
-/// The merge method for one [crate::api::PropStorage].
+/// The merge method
 ///
 /// It is designed to apply the change to a value.  
 /// Note that the sled database require the function parameter EID needs its ownship. Since it's Copy, it won't take some difficulty to convert but ugly.
@@ -50,4 +50,5 @@ impl<T> MergeFn for T where T: MergeOperator<EID, Value> + 'static {}
 /// # Return
 /// - `Option::<Delta>`: The new delta after tick. Option::None if stays the same (takes no effect).
 ///
-pub trait TickFn: Fn(&EID, Value, &Prop) -> Option<Value> + Send + Sync + 'static {}
+pub trait TickFn: Fn(&EID, Value, &Prop) -> Option<Value> + Send + Sync + 'static{}
+impl<T> TickFn for T where T: Fn(&EID, Value, &Prop) -> Option<Value> + Send + Sync + 'static{}

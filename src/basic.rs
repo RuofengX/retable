@@ -252,7 +252,7 @@ mod tests {
         assert_eq!(marker.0, "你好世界你好世界你好\0".as_bytes());
 
         let marker = Marker::new("你好世界");
-        assert_eq!(marker.0, "你好世界\0\0\0\0\0\0\0\0\0\0\0\0\0".as_bytes());
+        assert_eq!(marker.0, "你好世界\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0".as_bytes());
     }
 
     #[test]
