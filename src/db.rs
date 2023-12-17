@@ -58,7 +58,7 @@ impl Database {
         &mut self,
         prop_name: PropTag,
         merge: impl MergeFn,
-        tick: TickFn,
+        tick: impl TickFn,
     ) -> Arc<Prop> {
         let prop = self
             .props
@@ -75,7 +75,7 @@ impl Database {
 pub struct Prop {
     name: PropTag,
     tree: Tree<EID, Value>,
-    tick_method: TickFn,
+    tick_method: Arc<dyn TickFn>,
     cache: Cache<EID, Option<Value>>,
 }
 impl Prop {
@@ -83,11 +83,11 @@ impl Prop {
     ///
     /// Note that the merge method is necessary,
     /// if not used, just invoke an empty closure like `|_,_,_|None`.
-    pub fn new(db: &Db, name: PropTag, tick: TickFn, merge: impl MergeFn) -> Self {
+    pub fn new(db: &Db, name: PropTag, tick: impl TickFn, merge: impl MergeFn) -> Self {
         let mut rtn = Self {
             name: name.clone(),
             tree: Tree::<EID, Value>::open::<PropTag>(db, name),
-            tick_method: tick,
+            tick_method: Arc::new(tick),
             cache: Cache::builder().max_capacity(1024 * 1024).build(),
         };
         rtn.register_merge(merge);
@@ -296,8 +296,8 @@ impl Prop {
     }
 
     /// See more in [`crate::method::TickFn`]
-    pub fn register_tick(&mut self, f: TickFn) -> () {
-        self.tick_method = f;
+    pub fn register_tick(&mut self, f: impl TickFn) -> () {
+        self.tick_method = Arc::new(f);
     }
 
     /// Tick all entity.

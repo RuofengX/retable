@@ -1,4 +1,4 @@
-# Retable
+# Retable, WIP, NOT USE
 
 A Rust library for Atomic-like double-indexed entity-attribute data structures.  
 
