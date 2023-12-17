@@ -3,8 +3,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
-    api::{AtomStorage, PropStorage},
-    basic::{Delta, Value, EID, PropTag},
+    basic::{Delta, PropTag, Value, EID},
     error::Error,
     method::{MergeFn, TickFn},
 };
@@ -17,7 +16,7 @@ use typed_sled::Tree;
 /// As the name says.
 pub struct Database {
     db: Db,
-    props: BTreeMap<PropTag, Arc<dyn PropStorage>>,
+    props: BTreeMap<PropTag, Arc<Prop>>,
 }
 
 impl Database {
@@ -46,17 +45,21 @@ impl Default for Database {
     }
 }
 
-impl AtomStorage for Database {
-    fn get_prop(&self, prop: &PropTag) -> Option<Arc<dyn PropStorage>> {
+impl Database {
+    /// Get Prop reference from Database.
+    ///
+    /// Return None if not exist.
+    pub fn get_prop(&self, prop: &PropTag) -> Option<Arc<Prop>> {
         self.props.get(prop).map(|x| x.clone())
     }
 
-    fn create_prop(
+    /// If already exists, return the old data but register new method.
+    pub fn create_prop(
         &mut self,
         prop_name: PropTag,
-        merge: MergeFn,
+        merge: impl MergeFn,
         tick: TickFn,
-    ) -> Arc<dyn PropStorage> {
+    ) -> Arc<Prop> {
         let prop = self
             .props
             .entry(prop_name.clone())
@@ -80,7 +83,7 @@ impl Prop {
     ///
     /// Note that the merge method is necessary,
     /// if not used, just invoke an empty closure like `|_,_,_|None`.
-    pub fn new(db: &Db, name: PropTag, tick: TickFn, merge: MergeFn) -> Self {
+    pub fn new(db: &Db, name: PropTag, tick: TickFn, merge: impl MergeFn) -> Self {
         let mut rtn = Self {
             name: name.clone(),
             tree: Tree::<EID, Value>::open::<PropTag>(db, name),
@@ -92,9 +95,9 @@ impl Prop {
     }
 }
 
-impl PropStorage for Prop {
+impl Prop {
     /// Return the name of this Prop.
-    fn name(&self) -> PropTag{
+    pub fn name(&self) -> PropTag {
         self.name
     }
 
@@ -120,7 +123,7 @@ impl PropStorage for Prop {
     /// assert_eq!(prop.get(&eid), Some(Value::Int(8)));
     /// ```
     ///
-    fn get(&self, eid: &EID) -> Option<Value> {
+    pub fn get(&self, eid: &EID) -> Option<Value> {
         // 访问缓存
         if let Some(result) = self.cache.get(&eid) {
             // 缓存命中
@@ -168,7 +171,7 @@ impl PropStorage for Prop {
     /// assert_eq!(prop.get(&eid), Some(Value::Int(2001)));
     /// ```
     ///
-    fn set(&self, eid: &EID, value: Value, retrieve: bool) -> Option<Value> {
+    pub fn set(&self, eid: &EID, value: Value, retrieve: bool) -> Option<Value> {
         self.cache.insert(*eid, Some(value));
         let old = self
             .tree
@@ -208,7 +211,7 @@ impl PropStorage for Prop {
     /// assert!(prop.get(&EID::new(1)).is_none());
     /// assert!(prop.get(&EID::new(2)).is_none());
     /// ```
-    fn remove(&self, eid: &EID, retrieve: bool) -> Option<Value> {
+    pub fn remove(&self, eid: &EID, retrieve: bool) -> Option<Value> {
         self.cache.insert(*eid, None);
         if let Some(v) = self
             .tree
@@ -227,7 +230,7 @@ impl PropStorage for Prop {
 
     /// Register a merge function for Prop.
     /// See [Prop::merge] for more.
-    fn register_merge(&mut self, f: MergeFn) -> () {
+    pub fn register_merge(&mut self, f: impl MergeFn) -> () {
         self.tree.set_merge_operator(f); // 使用typed_sled的merge方法
     }
 
@@ -287,13 +290,13 @@ impl PropStorage for Prop {
     /// assert_eq!(prop.get(&EID::new(3)), None);
     /// ```
     ///
-    fn merge(&self, eid: &EID, delta: Delta) -> () {
+    pub fn merge(&self, eid: &EID, delta: Delta) -> () {
         let new = self.tree.merge(&eid, &delta).unwrap();
         self.cache.insert(*eid, new);
     }
 
     /// See more in [`crate::method::TickFn`]
-    fn register_tick(&mut self, f: TickFn) -> () {
+    pub fn register_tick(&mut self, f: TickFn) -> () {
         self.tick_method = f;
     }
 
@@ -303,7 +306,7 @@ impl PropStorage for Prop {
     /// The result delta of every tick is auto merged.
     ///
     /// See more in [`crate::method::TickFn`]
-    fn tick(&self) {
+    pub fn tick(&self) {
         self.tree.iter().par_bridge().for_each(|i| {
             if let Ok((eid, value)) = i {
                 let result = (self.tick_method)(&eid, value, self);

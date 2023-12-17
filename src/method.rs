@@ -1,6 +1,7 @@
 //! Define stateful method that interact with database.
 
-use crate::basic::{Delta, Value, EID};
+use crate::{basic::{Delta, Value, EID}, Prop};
+use typed_sled::MergeOperator;
 
 /// The merge method for one [crate::api::PropStorage].
 ///
@@ -15,9 +16,11 @@ use crate::basic::{Delta, Value, EID};
 /// # Return
 /// - `Option<Value>`: The new value after merge. Option::None if the value is deleted.
 ///
-pub type MergeFn = fn(eid: EID, old: Option<Value>, delta: Delta) -> Option<Value>;
+pub trait MergeFn: Fn(EID, Option<Value>, Delta) -> Option<Value> + 'static{}
+impl<T> MergeFn for T where T:  MergeOperator<EID, Value> + 'static{}
 
 /// Tick method
+/// 
 /// Designed to apply the change to a value.
 ///
 /// # Behavior
@@ -44,4 +47,4 @@ pub type MergeFn = fn(eid: EID, old: Option<Value>, delta: Delta) -> Option<Valu
 /// # Return
 /// - `Option::<Delta>`: The new delta after tick. Option::None if stays the same (takes no effect).
 ///
-pub type TickFn = fn(eid: &EID, value: Value, prop: &dyn crate::api::PropStorage) -> Option<Delta>;
+pub type TickFn = fn(eid: &EID, value: Value, prop: &Prop) -> Option<Delta>;
