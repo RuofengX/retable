@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, VecDeque};
+use parking_lot::RwLock;
+use std::collections::BTreeMap;
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 pub trait Key: Copy + Ord + Send {}
@@ -33,9 +34,9 @@ impl<K: Key, V: Value> RawProp<K, V> {
         }
     }
 
-    pub fn read(&self, k: &K) -> Option<&V> {
+    pub fn read(&self, k: &K) -> Option<V> {
         if let Some(&index) = self.index.get(k) {
-            unsafe { self.read_uncheck(index).as_ref() }
+            unsafe { self.read_uncheck(index).clone() }
         } else {
             None
         }
@@ -108,6 +109,39 @@ impl<K: Key, V: Value> RawProp<K, V> {
 }
 
 pub struct Prop<K: Key, V: Value> {
-    inner: RawProp<K, V>,
-    pending_ops: Vec<Command<K, V>>,
+    inner: RwLock<RawProp<K, V>>,
+}
+impl<K: Key, V: Value> Prop<K, V> {
+    pub fn new() -> Prop<K, V> {
+        Self {
+            inner: RwLock::new(RawProp::<K, V> {
+                index: BTreeMap::new(),
+                data: Vec::new(),
+                empty_slot: Vec::new(),
+            }),
+        }
+    }
+}
+
+/// Thread safe CRUD api
+impl<K: Key, V: Value> Prop<K, V> {
+    pub fn create(&self, k: &K, v: V) {
+        let mut wtx = self.inner.write();
+        wtx.create(k, v)
+    }
+
+    pub fn read(&self, k: &K) -> Option<V> {
+        let rtx = self.inner.read();
+        rtx.read(k)
+    }
+
+    pub fn update(&mut self, k: &K, v: V) -> Option<V> {
+        let mut wtx = self.inner.write();
+        wtx.update(k, v)
+    }
+
+    pub fn delete(&mut self, k: &K) -> Option<V> {
+        let mut wtx = self.inner.write();
+        wtx.delete(k)
+    }
 }
