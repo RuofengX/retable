@@ -152,25 +152,29 @@ impl<K: Key, V: Value, M: MergeFn<K, V>> Prop<K, V, M> {
     }
 }
 
-/// Thread safe CRUD api
 impl<K: Key, V: Value, M: MergeFn<K, V>> Prop<K, V, M> {
-    pub fn create(&self, k: &K, v: V) {
+    pub fn create(&self, key: &K, value: V) {
         let mut wtx = self.inner.write();
-        wtx.create(k, v)
+        wtx.create(key, value)
     }
 
-    pub fn read(&self, k: &K) -> Option<V> {
+    pub fn read(&self, key: &K) -> Option<V> {
         let rtx = self.inner.read();
-        rtx.read(k)
+        rtx.read(key)
     }
 
-    pub fn update(&mut self, k: &K, v: V) -> Option<V> {
+    pub fn update(&self, key: &K, value: V) -> Option<V> {
         let mut wtx = self.inner.write();
-        wtx.update(k, v)
+        wtx.update(key, value)
     }
 
-    pub fn delete(&mut self, k: &K) -> Option<V> {
+    pub fn delete(&self, key: &K) -> Option<V> {
         let mut wtx = self.inner.write();
-        wtx.delete(k)
+        wtx.delete(key)
+    }
+
+    pub fn merge(&self, key:&K, delta: V) -> Option<V>{
+        let mut wtx = self.inner.write();
+        wtx.merge(key, delta)
     }
 }
