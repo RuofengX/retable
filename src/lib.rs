@@ -1,3 +1,5 @@
+mod binlog;
+
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
@@ -18,14 +20,18 @@ pub enum Command<K: Key, V: Value> {
     CompareAndSwap((K, V, V)), // Key, Old, New
 }
 
-pub struct RawProp<K: Key, V: Value> {
+pub trait MergeFn<K: Key, V: Value>: Fn(&K, Option<V>, V) -> Option<V> {}
+impl<T, K: Key, V: Value> MergeFn<K, V> for T where T: Fn(&K, Option<V>, V) -> Option<V> {}
+
+pub struct RawProp<K: Key, V: Value, M: MergeFn<K, V>> {
     index: BTreeMap<K, usize>,
     data: Vec<Option<V>>,
     empty_slot: Vec<usize>,
+    merge_op: M,
 }
 
 /// CRUD api
-impl<K: Key, V: Value> RawProp<K, V> {
+impl<K: Key, V: Value, M: MergeFn<K, V>> RawProp<K, V, M> {
     pub fn create(&mut self, k: &K, v: V) {
         if self.contains_key(&k) {
             unsafe { self.update_uncheck(k, v) };
@@ -61,15 +67,37 @@ impl<K: Key, V: Value> RawProp<K, V> {
     }
 }
 
+impl<K: Key, V: Value, M: MergeFn<K, V>> RawProp<K, V, M> {
+    pub fn new(merge_op: M) -> RawProp<K, V, M> {
+        RawProp::<K, V, M> {
+            index: BTreeMap::new(),
+            data: Vec::new(),
+            empty_slot: Vec::new(),
+            merge_op,
+        }
+    }
+
+    /// Merge one value into self, return the old value.
+    pub fn merge(&mut self, key: &K, delta: V) -> Option<V> {
+        let old = self.read(key);
+        let new = (self.merge_op)(key, old, delta);
+        if let Some(new) = new{
+            self.update(key, new)
+        } else {
+            self.delete(key)
+        }
+    }
+}
+
 /// Interact with self
-impl<K: Key, V: Value> RawProp<K, V> {
+impl<K: Key, V: Value, M: MergeFn<K, V>> RawProp<K, V, M> {
     pub fn contains_key(&self, key: &K) -> bool {
         self.index.contains_key(key)
     }
 }
 
 /// Private method
-impl<K: Key, V: Value> RawProp<K, V> {
+impl<K: Key, V: Value, M: MergeFn<K, V>> RawProp<K, V, M> {
     /// # Panic
     /// Panic when key not exists.
     #[inline]
@@ -108,23 +136,24 @@ impl<K: Key, V: Value> RawProp<K, V> {
     }
 }
 
-pub struct Prop<K: Key, V: Value> {
-    inner: RwLock<RawProp<K, V>>,
+pub struct Prop<K: Key, V: Value, M: MergeFn<K, V>> {
+    inner: RwLock<RawProp<K, V, M>>,
 }
-impl<K: Key, V: Value> Prop<K, V> {
-    pub fn new() -> Prop<K, V> {
+impl<K: Key, V: Value, M: MergeFn<K, V>> Prop<K, V, M> {
+    pub fn new(merge_op: M) -> Prop<K, V, M> {
         Self {
-            inner: RwLock::new(RawProp::<K, V> {
+            inner: RwLock::new(RawProp::<K, V, M> {
                 index: BTreeMap::new(),
                 data: Vec::new(),
                 empty_slot: Vec::new(),
+                merge_op,
             }),
         }
     }
 }
 
 /// Thread safe CRUD api
-impl<K: Key, V: Value> Prop<K, V> {
+impl<K: Key, V: Value, M: MergeFn<K, V>> Prop<K, V, M> {
     pub fn create(&self, k: &K, v: V) {
         let mut wtx = self.inner.write();
         wtx.create(k, v)
