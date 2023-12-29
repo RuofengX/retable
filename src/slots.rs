@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::collections::BTreeSet;
 
 use parking_lot::RwLock;
@@ -22,10 +23,10 @@ impl<T> Cell<T> {
     }
     fn modify_with<F>(&self, f: F)
     where
-        F: FnOnce(Option<&T>),
+        F: FnOnce(Option<&mut T>),
     {
         let mut ctx = self.0.write();
-        f(ctx.as_ref());
+        f(ctx.as_mut());
     }
 }
 
@@ -58,9 +59,6 @@ impl<T: Clone + Default> Slots<T> {
             data: vec![Cell::new(); cap],
             empty: (0..cap).into_iter().collect(),
         }
-    }
-    pub fn new() -> Self {
-        Slots::with_capacity(0)
     }
 
     /// Allocate n cells into slots.
@@ -105,7 +103,7 @@ impl<T: Clone + Default> Slots<T> {
     /// # Safety
     /// index must inbound
     pub unsafe fn modify_with<F>(&self, index: usize, f: F)
-    where F: FnOnce(Option<&T>) {
+    where F: FnOnce(Option<&mut T>) {
         self.data.get_unchecked(index).modify_with(f)
     }
 

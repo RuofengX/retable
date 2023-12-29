@@ -41,7 +41,7 @@ impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
     /// Nothing happens if the key does not exist.
     fn modify_with<F>(&self, key: &K, f: F)
     where
-        F: FnOnce(Option<&V>),
+        F: FnOnce(Option<&mut V>),
     {
         if let Some(index) = self.index.get(key) {
             // exists
@@ -95,7 +95,7 @@ where
 
     pub fn modify_with<F>(&self, key: K, f: F)
     where
-        F: FnOnce(Option<&V>),
+        F: FnOnce(Option<&mut V>),
     {
         self.data.read().modify_with(&key, f)
     }
