@@ -4,44 +4,37 @@ use parking_lot::RwLock;
 use slab::Slab;
 
 mod binlog;
+mod slot;
 
-pub struct Column<K: Copy + Ord, T: Default + Clone> {
-    valid: BTreeMap<K, usize>,
-    empty: BTreeSet<usize>,
-    slot: Vec<RwLock<Option<T>>>,
+
+pub struct Dense<K: Copy + Ord, V: Default + Clone> {
+    index: BTreeMap<K, usize>,
+    data: Slab<Cell<V>>,
 }
 
-impl<K: Copy + Ord, T: Default + Clone> Column<K, T> {
+pub struct Column<K: Copy + Ord, V: Default + Clone> (RwLock<Dense<K,V>>);
+
+impl<K: Copy + Ord, V: Default + Clone> Column<K, V> {
     pub fn new() -> Self {
-        Self {
-            valid: BTreeMap::new(),
-            empty: BTreeSet::new(),
-            slot: Vec::new(),
-        }
+        Self::with_capacity(0)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        let mut slot = Vec::new();
-        let mut empty = BTreeSet::new();
-        for ele in (0..capacity).into_iter() {
-            slot.push(RwLock::new(None));
-            empty.insert(ele);
-        }
-        Self {
-            valid: BTreeMap::new(),
-            empty,
-            slot,
-        }
+        Self(RwLock::new(
+            Dense{
+                index: BTreeMap::new(),
+                data: Slab::with_capacity(capacity),
+            }
+        ))
     }
 
-    pub fn pre_allocate(&mut self, size: usize) {
-        (0..size).into_iter().for_each(|_| {
-            let index = self.allocate_empty();
-            self.empty.insert(index);
-        })
+    pub fn create(&self, key: &K, value: V){
+        let table_lock = self.0.upgradable_read();
+        if table_lock.data.
     }
 
-    pub fn get(&self, key: &K) -> Option<T> {
+
+    pub fn get(&self, key: &K) -> Option<K> {
         if let Some(index) = self.valid.get(key) {
             let entry = unsafe { self.slot.get_unchecked(*index).read() };
             Some(entry.as_ref().unwrap().clone())
@@ -50,7 +43,7 @@ impl<K: Copy + Ord, T: Default + Clone> Column<K, T> {
         }
     }
 
-    pub fn set(&mut self, key: &K, value: T) -> Option<T> {
+    pub fn set(&mut self, key: &K, value: K) -> Option<K> {
         if let Some(index) = self.valid.get(key) {
             self.update_exist(*index, value)
         } else {
@@ -60,7 +53,6 @@ impl<K: Copy + Ord, T: Default + Clone> Column<K, T> {
         }
     }
     // TODO: Add gc, iter, merge
-
 }
 
 /// Base function
