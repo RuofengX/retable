@@ -1,89 +1,106 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+mod slots;
+
+use std::collections::BTreeMap;
 
 use parking_lot::RwLock;
-use slab::Slab;
+use slots::Slots;
 
-mod binlog;
-mod slot;
-
-
-pub struct Dense<K: Copy + Ord, V: Default + Clone> {
-    index: BTreeMap<K, usize>,
-    data: Slab<Cell<V>>,
+struct Dense<K, V> {
+    slots: Slots<V>,
+    index: BTreeMap<K, usize>, // the value in index must in slots' bounds
 }
-
-pub struct Column<K: Copy + Ord, V: Default + Clone> (RwLock<Dense<K,V>>);
-
-impl<K: Copy + Ord, V: Default + Clone> Column<K, V> {
-    pub fn new() -> Self {
-        Self::with_capacity(0)
-    }
-
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self(RwLock::new(
-            Dense{
-                index: BTreeMap::new(),
-                data: Slab::with_capacity(capacity),
-            }
-        ))
-    }
-
-    pub fn create(&self, key: &K, value: V){
-        let table_lock = self.0.upgradable_read();
-        if table_lock.data.
-    }
-
-
-    pub fn get(&self, key: &K) -> Option<K> {
-        if let Some(index) = self.valid.get(key) {
-            let entry = unsafe { self.slot.get_unchecked(*index).read() };
-            Some(entry.as_ref().unwrap().clone())
-        } else {
-            return None;
+impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
+    fn with_capacity(cap: usize) -> Self {
+        Dense {
+            slots: Slots::with_capacity(cap),
+            index: BTreeMap::new(),
         }
     }
 
-    pub fn set(&mut self, key: &K, value: K) -> Option<K> {
-        if let Some(index) = self.valid.get(key) {
-            self.update_exist(*index, value)
+    fn get(&self, key: &K) -> Option<V> {
+        if let Some(index) = self.index.get(key) {
+            unsafe { self.slots.read(*index) }
         } else {
-            let index = self.create_any(value);
-            self.valid.insert(*key, index);
             None
         }
     }
-    // TODO: Add gc, iter, merge
-}
 
-/// Base function
-impl<K: Copy + Ord, T: Default + Clone> Column<K, T> {
-    fn create_any(&mut self, v: T) -> usize {
-        if let Some(index) = self.empty.pop_first() {
-            let mut entry = unsafe { self.slot.get_unchecked_mut(index).write() };
-            *entry = Some(v);
-            index
+    fn set(&mut self, key: &K, value: V) -> Option<V> {
+        if let Some(index) = self.index.get(key) {
+            // already exists
+            // swap the value
+            unsafe { self.slots.swap(*index, value) }
         } else {
-            self.slot.push(RwLock::new(Some(v)));
-            self.slot.len()
+            // not exists
+            let index = self.slots.create(value);
+            self.index.insert(*key, index);
+            None
         }
     }
 
-    fn allocate_empty(&mut self) -> usize {
-        self.slot.push(RwLock::new(None));
-        self.slot.len()
+    /// Nothing happens if the key does not exist.
+    fn modify_with<F>(&self, key: &K, f: F)
+    where
+        F: FnOnce(Option<&V>),
+    {
+        if let Some(index) = self.index.get(key) {
+            // exists
+            unsafe { self.slots.modify_with(*index, f) };
+        }
     }
 
-    fn update_exist(&self, index: usize, v: T) -> Option<T> {
-        let mut entry = unsafe { self.slot.get_unchecked(index).upgradable_read() };
-        let old = entry.clone();
-        entry.with_upgraded(|x| *x = Some(v));
-        old
+    fn remove(&mut self, key: &K) -> Option<V> {
+        if let Some(index) = self.index.remove(key) {
+            // exists
+            unsafe { self.slots.take(index) }
+        } else {
+            // not exists
+            None
+        }
+    }
+}
+
+pub struct Prop<K, V>
+where
+    K: Ord + Copy,
+    V: Clone + Default,
+{
+    data: RwLock<Dense<K, V>>,
+}
+
+impl<K, V> Prop<K, V>
+where
+    K: Ord + Copy,
+    V: Clone + Default,
+{
+    pub fn new() -> Self {
+        Prop {
+            data: RwLock::new(Dense::with_capacity(4096)),
+        }
     }
 
-    fn delete_exist(&self, index: usize) -> Option<T> {
-        let mut entry = unsafe { self.slot.get_unchecked(index).upgradable_read() };
-        let old = entry.clone();
-        entry.with_upgraded(|x| *x = None);
-        old
+    pub fn get(&self, key: &K) -> Option<V> {
+        self.data.read().get(key)
+    }
+
+    /// Set a value anyway.
+    /// Create new cell if the key does not exist.
+    ///
+    /// May slower than modify_with
+    /// because it needs to lock the whole map
+    /// to create new cell if the key does not exist.
+    pub fn set(&self, key: K, value: V) -> Option<V> {
+        self.data.write().set(&key, value)
+    }
+
+    pub fn modify_with<F>(&self, key: K, f: F)
+    where
+        F: FnOnce(Option<&V>),
+    {
+        self.data.read().modify_with(&key, f)
+    }
+
+    pub fn remove(&self, key: &K) -> Option<V> {
+        self.data.write().remove(key)
     }
 }
