@@ -1,3 +1,4 @@
+mod binlog;
 mod slots;
 
 use std::collections::BTreeMap;
@@ -93,11 +94,11 @@ where
         self.data.write().set(key, value)
     }
 
-    pub fn modify_with<F>(&self, key: K, f: F)
+    pub fn modify_with<F>(&self, key: &K, f: F)
     where
         F: FnOnce(Option<&mut V>),
     {
-        self.data.read().modify_with(&key, f)
+        self.data.read().modify_with(key, f);
     }
 
     pub fn remove(&self, key: &K) -> Option<V> {
@@ -105,15 +106,15 @@ where
     }
 }
 
-mod test{
+mod test {
     #[test]
     fn test_set_get() {
         use super::Prop;
 
         let prop = Prop::<u64, i64>::new();
         prop.set(&1, 1);
-        prop.set(&2,2);
-        prop.set(&3,3);
+        prop.set(&2, 2);
+        prop.set(&3, 3);
         assert_eq!(prop.get(&1), Some(1));
         assert_eq!(prop.get(&2), Some(2));
         assert_eq!(prop.get(&3), Some(3));
@@ -121,6 +122,28 @@ mod test{
         assert_eq!(prop.get(&1), Some(2));
 
         assert_eq!(prop.get(&4), None);
-
     }
+
+    #[test]
+    fn test_modify_with() {
+        use super::Prop;
+
+        let mock_modify =
+            |old: Option<&mut i64>| old.is_some().then(|| *old.unwrap() += 1).unwrap();
+
+        let prop = Prop::<u64, i64>::new();
+        prop.set(&1, 1);
+        prop.modify_with(&1, mock_modify)
+    }
+
+    // fn test_merge() {
+    //     use super::Prop;
+
+    //     let mock_merge=
+    //         |old: Option<&mut i64>, delta: i64| old.is_some().then(|| *old.unwrap() += delta);
+
+    //     let prop = Prop::<u64, i64>::new();
+    //     prop.set(&1, 1);
+    //     prop.merge(&1, mock_merge);
+    // }
 }

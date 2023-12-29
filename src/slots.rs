@@ -198,9 +198,7 @@ mod test {
         });
 
         (0..1024).into_iter().for_each(|n| {
-            assert_eq!(unsafe{s.swap(n, n as i32)}, Some(n as i32));
+            assert_eq!(unsafe { s.swap(n, n as i32) }, Some(n as i32));
         });
     }
-
-
 }
