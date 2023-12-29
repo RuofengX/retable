@@ -103,10 +103,11 @@ impl<T: Clone + Default> Slots<T> {
     /// # Safety
     /// index must inbound
     pub unsafe fn modify_with<F>(&self, index: usize, f: F)
-    where F: FnOnce(Option<&mut T>) {
+    where
+        F: FnOnce(Option<&mut T>),
+    {
         self.data.get_unchecked(index).modify_with(f)
     }
-
 
     /// # Safety
     /// index must inbound
@@ -128,4 +129,78 @@ impl<T: Clone + Default> Slots<T> {
     pub unsafe fn take(&mut self, index: usize) -> Option<T> {
         self.data.get_unchecked(index).take_value()
     }
+}
+
+mod test {
+    #[test]
+    fn test_alloc() {
+        use super::Slots;
+        let s = Slots::<u64>::with_capacity(0);
+        assert_eq!(s.empty.len(), 0);
+
+        let s = Slots::<u64>::with_capacity(1024);
+        assert_eq!(s.empty.len(), 1024);
+
+        let mut s = Slots::<u64>::with_capacity(0);
+        (0..1024).into_iter().for_each(|n| {
+            assert_eq!(s.allocate(1), n + 1);
+            assert_eq!(s.empty, (0..=n).into_iter().collect())
+        })
+    }
+
+    #[test]
+    fn test_create_read() {
+        use super::Slots;
+        use std::collections::BTreeSet;
+        let mut s = Slots::<u64>::with_capacity(1024);
+        (0..1024).into_iter().for_each(|n| {
+            assert_eq!(s.create(n as u64), n);
+            assert_eq!(s.empty, (n + 1..1024).into_iter().collect())
+        });
+        assert_eq!(s.data.len(), 1024);
+        assert_eq!(s.empty, BTreeSet::<usize>::new());
+
+        (0..1024).into_iter().for_each(|n| {
+            assert_eq!(unsafe { s.read(n) }, Some(n as u64));
+        });
+    }
+
+    #[test]
+    fn test_modify_with() {
+        use super::Slots;
+
+        let double = &|a: Option<&mut i32>| {
+            if let Some(a) = a {
+                *a *= 2;
+            }
+        };
+
+        let mut s = Slots::<i32>::with_capacity(1024);
+        (0..1024).into_iter().for_each(|n| {
+            assert_eq!(s.create(n as i32), n);
+            assert_eq!(s.empty, (n + 1..1024).into_iter().collect())
+        });
+        (0..1024)
+            .into_iter()
+            .for_each(|n| unsafe { s.modify_with(n, double) });
+        (0..1024)
+            .into_iter()
+            .for_each(|n| assert_eq!(unsafe { s.read(n) }, Some(n as i32 * 2)));
+    }
+
+    #[test]
+    fn test_swap() {
+        use super::Slots;
+
+        let mut s = Slots::<i32>::with_capacity(1024);
+        (0..1024).into_iter().for_each(|n| {
+            assert_eq!(s.create(n as i32), n);
+        });
+
+        (0..1024).into_iter().for_each(|n| {
+            assert_eq!(unsafe{s.swap(n, n as i32)}, Some(n as i32));
+        });
+    }
+
+
 }

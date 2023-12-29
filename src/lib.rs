@@ -89,8 +89,8 @@ where
     /// May slower than modify_with
     /// because it needs to lock the whole map
     /// to create new cell if the key does not exist.
-    pub fn set(&self, key: K, value: V) -> Option<V> {
-        self.data.write().set(&key, value)
+    pub fn set(&self, key: &K, value: V) -> Option<V> {
+        self.data.write().set(key, value)
     }
 
     pub fn modify_with<F>(&self, key: K, f: F)
@@ -102,5 +102,25 @@ where
 
     pub fn remove(&self, key: &K) -> Option<V> {
         self.data.write().remove(key)
+    }
+}
+
+mod test{
+    #[test]
+    fn test_set_get() {
+        use super::Prop;
+
+        let prop = Prop::<u64, i64>::new();
+        prop.set(&1, 1);
+        prop.set(&2,2);
+        prop.set(&3,3);
+        assert_eq!(prop.get(&1), Some(1));
+        assert_eq!(prop.get(&2), Some(2));
+        assert_eq!(prop.get(&3), Some(3));
+        prop.set(&1, 2);
+        assert_eq!(prop.get(&1), Some(2));
+
+        assert_eq!(prop.get(&4), None);
+
     }
 }
