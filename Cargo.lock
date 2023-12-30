@@ -37,13 +37,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mykv"
-version = "0.1.0"
-dependencies = [
- "parking_lot",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -73,6 +66,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4722d768eff46b75989dd134e5c353f0d6296e5aaa3132e776cbdb56be7731aa"
 dependencies = [
  "bitflags",
+]
+
+[[package]]
+name = "retable"
+version = "0.7.0-alpha.3"
+dependencies = [
+ "parking_lot",
 ]
 
 [[package]]
