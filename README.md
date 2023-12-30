@@ -26,6 +26,7 @@ Atom is a way to describe a single entity-attribute pair.
 - [ ] Documentation.
 - [ ] Message queue support.
 - [ ] Benchmark.
+- [ ] Auto shrink inner data to make more density.
 
 ---
 
