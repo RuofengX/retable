@@ -1,3 +1,8 @@
+//! A in-memory key-value store.
+//! 
+//! Designed to be used in multi-threaded environment with high concurrency,
+//! like game.
+
 mod binlog;
 mod merge;
 mod slots;
@@ -64,6 +69,13 @@ impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
     }
 }
 
+/// A column that storage a set of same type data.
+/// 
+/// # Thread safe
+/// 
+/// Prop is designed to be thread-safe. Like any other database table,
+/// prop has two types of lock, one is column lock(like table lock in mysql),
+/// the other is cell lock(like row lock in mysql).
 pub struct Prop<K, V, D = ()>
 where
     K: Ord + Copy,
@@ -78,6 +90,9 @@ where
     K: Ord + Copy,
     V: Clone + Default,
 {
+    /// Create a new prop
+    /// 
+    /// a size of 4096 pre-allocation will be made.
     pub fn new() -> Self {
         Prop {
             data: RwLock::new(Dense::with_capacity(4096)),
@@ -85,6 +100,8 @@ where
         }
     }
 
+    /// Create a new prop, 
+    /// with a merge function.
     pub fn with_merge(merge_method: impl MergeFn<V, D> + 'static) -> Self {
         Prop {
             data: RwLock::new(Dense::with_capacity(4096)),
@@ -92,6 +109,12 @@ where
         }
     }
 
+    /// Get a value.
+    /// 
+    /// # Thread safe
+    /// 
+    /// - Column lock: read
+    /// - Cell lock: read
     pub fn get(&self, key: &K) -> Option<V> {
         self.data.read().get(key)
     }
@@ -102,10 +125,23 @@ where
     /// May slower than modify_with
     /// because it needs to lock the whole map
     /// to create new cell if the key does not exist.
+    /// 
+    /// # Thread safe
+    /// 
+    /// - Column lock: write
+    /// - Cell lock: write
     pub fn set(&self, key: &K, value: V) -> Option<V> {
         self.data.write().set(key, value)
     }
 
+    /// Modify a cell by a function.
+    /// 
+    /// Nothing happen if key does not exist.
+    /// 
+    /// # Thread safe
+    /// 
+    /// - Column lock: read
+    /// - Cell lock: write
     pub fn modify_with<F>(&self, key: &K, f: F)
     where
         F: FnOnce(Option<&mut V>),
@@ -113,10 +149,22 @@ where
         self.data.read().modify_with(key, f);
     }
 
+    /// Remove a value.
+    /// 
+    /// # Thread safe
+    /// 
+    /// - Column lock: write
+    /// - Cell lock: write
     pub fn remove(&self, key: &K) -> Option<V> {
         self.data.write().remove(key)
     }
 
+    /// Merge a delta value to a value.
+    /// 
+    /// # Thread safe
+    /// 
+    /// - Column lock: upgradable_read => write if key exists, read if key does not exist
+    /// - Cell lock: write
     pub fn merge(&self, key: &K, delta: D) {
         let mut delete = false;
         let mut ctx = self.data.upgradable_read();

@@ -1,4 +1,5 @@
 [package]
+name = "retable"
 description = "An Atomic-like double indexed entity-attribute data structures."
 authors = ["RuofengX <<i@ruofengx.cn>>"]
 categories = ["database"]
@@ -6,7 +7,6 @@ keywords = ["database", "atomic", "double-indexed", "entity-attribute", "ecs"]
 readme = "README.md"
 edition = "2021"
 license = "MIT"
-name = "retable"
 version = "0.7.0-alpha.3"
 repository = "https://github.com/RuofengX/retable"
 
