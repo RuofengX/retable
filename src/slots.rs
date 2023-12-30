@@ -102,6 +102,7 @@ impl<T: Clone + Default> Slots<T> {
 
     /// # Safety
     /// index must inbound
+    /// cannot delete self cell, for its an immutable reference
     pub unsafe fn modify_with<F>(&self, index: usize, f: F)
     where
         F: FnOnce(Option<&mut T>),

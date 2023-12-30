@@ -1,8 +1,10 @@
 mod binlog;
+mod merge;
 mod slots;
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
+use crate::merge::MergeFn;
 use parking_lot::RwLock;
 use slots::Slots;
 
@@ -40,6 +42,7 @@ impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
     }
 
     /// Nothing happens if the key does not exist.
+    ///
     fn modify_with<F>(&self, key: &K, f: F)
     where
         F: FnOnce(Option<&mut V>),
@@ -61,15 +64,16 @@ impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
     }
 }
 
-pub struct Prop<K, V>
+pub struct Prop<K, V, D = ()>
 where
     K: Ord + Copy,
     V: Clone + Default,
 {
     data: RwLock<Dense<K, V>>,
+    merge_method: Arc<dyn MergeFn<V, D>>,
 }
 
-impl<K, V> Prop<K, V>
+impl<K, V, D> Prop<K, V, D>
 where
     K: Ord + Copy,
     V: Clone + Default,
@@ -77,6 +81,14 @@ where
     pub fn new() -> Self {
         Prop {
             data: RwLock::new(Dense::with_capacity(4096)),
+            merge_method: Arc::new(|_old, _delta| false),
+        }
+    }
+
+    pub fn with_merge(merge_method: impl MergeFn<V, D> + 'static) -> Self {
+        Prop {
+            data: RwLock::new(Dense::with_capacity(4096)),
+            merge_method: Arc::new(merge_method),
         }
     }
 
@@ -104,9 +116,21 @@ where
     pub fn remove(&self, key: &K) -> Option<V> {
         self.data.write().remove(key)
     }
+
+    pub fn merge(&self, key: &K, delta: D) {
+        let mut delete = false;
+        let mut ctx = self.data.upgradable_read();
+        ctx.modify_with(key, |old| {
+            delete = (self.merge_method.as_ref())(old, delta);
+        });
+        if delete {
+            ctx.with_upgraded(|x| x.remove(key));
+        }
+    }
 }
 
 mod test {
+
     #[test]
     fn test_set_get() {
         use super::Prop;
@@ -128,22 +152,35 @@ mod test {
     fn test_modify_with() {
         use super::Prop;
 
-        let mock_modify =
+        let mock_i64_add =
             |old: Option<&mut i64>| old.is_some().then(|| *old.unwrap() += 1).unwrap();
 
         let prop = Prop::<u64, i64>::new();
         prop.set(&1, 1);
-        prop.modify_with(&1, mock_modify)
+        prop.modify_with(&1, mock_i64_add);
     }
 
-    // fn test_merge() {
-    //     use super::Prop;
+    #[test]
+    fn test_merge() {
+        use super::Prop;
 
-    //     let mock_merge=
-    //         |old: Option<&mut i64>, delta: i64| old.is_some().then(|| *old.unwrap() += delta);
+        let prop = Prop::<u64, i64>::new();
+        prop.set(&1, 1);
+        prop.merge(&1, ());
+        assert_eq!(prop.get(&1), Some(1));
 
-    //     let prop = Prop::<u64, i64>::new();
-    //     prop.set(&1, 1);
-    //     prop.merge(&1, mock_merge);
-    // }
+        let mock_merge = |old: Option<&mut i64>, delta: i32| {
+            old.is_some().then(|| *old.unwrap() += delta.clone() as i64);
+            false
+        };
+
+        let prop = Prop::<u64, i64, i32>::with_merge(mock_merge);
+        prop.set(&1, 1);
+        prop.merge(&1, 1);
+        assert_eq!(prop.get(&1), Some(2));
+        prop.merge(&1, 1);
+        assert_eq!(prop.get(&1), Some(3));
+        prop.merge(&1, 1000);
+        assert_eq!(prop.get(&1), Some(1003));
+    }
 }
