@@ -2,6 +2,7 @@
 //!
 //! Designed to be used in multi-threaded environment with high concurrency,
 //! like game.
+//! 
 
 mod binlog;
 mod merge;
@@ -177,6 +178,7 @@ where
     }
 }
 
+#[cfg(test)]
 mod test {
 
     #[test]

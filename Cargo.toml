@@ -1,16 +1,24 @@
 [package]
-name = "retable"
-description = "An Atomic-like double indexed entity-attribute data structures."
 authors = ["RuofengX <<i@ruofengx.cn>>"]
 categories = ["database"]
-keywords = ["database", "atomic", "double-indexed", "entity-attribute", "ecs"]
-readme = "README.md"
+description = "An Atomic-like double indexed entity-attribute data structures."
 edition = "2021"
+keywords = ["database", "atomic", "double-indexed", "entity-attribute", "ecs"]
 license = "MIT"
-version = "0.7.0-alpha.3"
+name = "retable"
+readme = "README.md"
 repository = "https://github.com/RuofengX/retable"
+version = "0.7.0-alpha.3"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 parking_lot = "0.12.1"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "prop"
+harness = false
+
