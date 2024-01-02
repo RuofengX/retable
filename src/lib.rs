@@ -2,11 +2,11 @@
 //!
 //! Designed to be used in multi-threaded environment with high concurrency,
 //! like game.
-//! 
+//!
 
 mod binlog;
 mod merge;
-mod slots;
 pub mod prop;
+mod slots;
 
 pub use prop::Prop;

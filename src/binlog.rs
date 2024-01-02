@@ -13,8 +13,8 @@ use parking_lot::RwLock;
 use zerocopy::{AsBytes, FromBytes, FromZeroes, Unaligned};
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
 
-pub trait Exchangable: FromZeroes + FromBytes + AsBytes + Unaligned{}
-impl<T> Exchangable for T where T: FromZeroes + FromBytes + AsBytes + Unaligned{}
+pub trait Exchangable: FromZeroes + FromBytes + AsBytes + Unaligned {}
+impl<T> Exchangable for T where T: FromZeroes + FromBytes + AsBytes + Unaligned {}
 
 mod op {
     pub type Operate = u8;
@@ -43,7 +43,7 @@ impl<K, V> Commit<K, V> {
     }
 }
 
-pub struct Binlog<K, V>
+pub struct CommitBuffer<K, V>
 where
     K: Exchangable,
     V: Exchangable,
@@ -53,7 +53,7 @@ where
     buffer: Vec<u8>,
 }
 
-impl<K, V> Binlog<K, V>
+impl<K, V> CommitBuffer<K, V>
 where
     K: Exchangable,
     V: Exchangable,
@@ -61,7 +61,7 @@ where
     pub fn new() -> Self {
         let (buffer_writer, buffer_reader) = mpsc::channel();
         let buffer = Vec::new();
-        Binlog {
+        CommitBuffer {
             buffer_writer: Arc::new(buffer_writer),
             buffer_reader,
             buffer,
@@ -97,12 +97,12 @@ mod test {
 
     #[test]
     fn test_binlog() {
-        use super::{op, Binlog, Commit};
+        use super::{op, Commit, CommitBuffer};
         use std::io::Cursor;
         use zerocopy::AsBytes;
 
         let mut buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let log = Binlog::<u8, [u8; 1]>::new();
+        let log = CommitBuffer::<u8, [u8; 1]>::new();
 
         for i in 0u8..3 {
             let data = Commit::new(op::UPDATE, i, [1; 1]);
