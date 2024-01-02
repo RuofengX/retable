@@ -10,11 +10,11 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
-use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{AsBytes, FromBytes, FromZeroes, Unaligned};
+use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
 
-pub trait Exchangable: FromZeroes + FromBytes + AsBytes {}
-impl<T> Exchangable for T where T: FromZeroes + FromBytes + AsBytes {}
+pub trait Exchangable: FromZeroes + FromBytes + AsBytes + Unaligned{}
+impl<T> Exchangable for T where T: FromZeroes + FromBytes + AsBytes + Unaligned{}
 
 mod op {
     pub type Operate = u8;
@@ -30,7 +30,7 @@ mod op {
     // Update an exist key-value pair.
     pub const UPDATE: Operate = 0b01;
 }
-#[derive(AsBytes, FromBytes, FromZeroes)]
+#[derive(AsBytes, FromBytes, FromZeroes, Unaligned)]
 #[repr(packed)]
 pub struct Commit<K, V> {
     op: op::Operate,
