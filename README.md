@@ -7,13 +7,16 @@ A Rust library for Atomic-like double-indexed entity-attribute data structures.
 
 ## Atom
 
-Atom is a way to describe a single entity-attribute pair.
+Atom is a way to describe a single key-value pair.
 
-| Field Name   | Size(in bytes) | Description                                    |
-| ------------ | -------------- | ---------------------------------------------- |
-| EID          | 8bytes         | Entity ID, a unique ID for an entity.          |
-| PropertyName | 8bytes         | A fixed size string to describe the attribute. |
-| Value        | ??bytes        | A value to describe the attribute.             |
+Atom use an UUID as the global type definition.
+
+| Field Name   | Data Type | Size or MaxSize | Description                        |
+| ------------ | --------- | --------------- | ---------------------------------- |
+| Meta         | u64       | 8               |                                    |
+| PropertyName | u8        | 1 bytes         |                                    |
+| Index        | u64       | 8 bytes         | Key                                |
+| Value        |           | <=2^64 bytes    | A value to describe the attribute. |
 
 * Endian: Little Endian, rust native.
 * Codec: Using rust [zerocopy](https://docs.rs/zerocopy/latest/zerocopy/index.html) to encode/decode.
