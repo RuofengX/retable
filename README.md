@@ -23,6 +23,7 @@ Atom is a way to describe a single entity-attribute pair.
 
 - [x] Basic implementation.
 - [ ] Binlog to do persistent storage.
+- [ ] Support async non-instent op.
 - [ ] Documentation.
 - [ ] Message queue support.
 - [ ] Benchmark.

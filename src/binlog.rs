@@ -102,15 +102,24 @@ mod test {
         use zerocopy::AsBytes;
 
         let mut buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let log = Binlog::<u16, [u8; 16]>::new();
+        let log = Binlog::<u8, [u8; 1]>::new();
 
-        for i in 256u16..512 {
-            let data = Commit::new(op::UPDATE, i, [1; 16]);
+        for i in 0u8..3 {
+            let data = Commit::new(op::UPDATE, i, [1; 1]);
             println!("{:?}", data.as_bytes());
             log.commit(data);
         }
 
         assert_eq!(log.save(1, &mut buffer), 1);
-        assert_eq!(buffer, Cursor::new(vec![1]));
+        let mut mock_buff = Cursor::new(vec![1, 0, 1]);
+        mock_buff.set_position(3);
+        assert_eq!(buffer, mock_buff);
+
+        assert_eq!(log.save(3, &mut buffer), 2);
+        let mut mock_buff = Cursor::new(vec![1, 0, 1, 1, 1, 1, 1, 2, 1]);
+        mock_buff.set_position(9);
+        assert_eq!(buffer, mock_buff);
+
+        assert_eq!(log.save(1, &mut buffer), 0);
     }
 }
