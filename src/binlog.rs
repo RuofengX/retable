@@ -18,17 +18,15 @@ impl<T> Exchangable for T where T: FromZeroes + FromBytes + AsBytes + Unaligned 
 
 mod op {
     pub type Operate = u8;
-    // Set a value, no matter the key exists.
-    pub const SET_ANY: Operate = 0b10;
-
-    // Delete a value.
-    pub const DELETE: Operate = 0b11;
 
     // Create a key-value pair which does not exist before.
     pub const CREATE: Operate = 0b00;
 
     // Update an exist key-value pair.
     pub const UPDATE: Operate = 0b01;
+
+    // Delete a value.
+    pub const DELETE: Operate = 0b10;
 }
 #[derive(AsBytes, FromBytes, FromZeroes, Unaligned)]
 #[repr(packed)]
