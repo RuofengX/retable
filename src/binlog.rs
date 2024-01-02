@@ -102,9 +102,9 @@ mod test {
         use zerocopy::AsBytes;
 
         let mut buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let log = Binlog::<u64, [u8; 16]>::new();
+        let log = Binlog::<u16, [u8; 16]>::new();
 
-        for i in 256u64..512 {
+        for i in 256u16..512 {
             let data = Commit::new(op::UPDATE, i, [1; 16]);
             println!("{:?}", data.as_bytes());
             log.commit(data);
