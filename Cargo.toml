@@ -16,6 +16,7 @@ version = "0.7.0-alpha.4"
 crossbeam = "0.8.3"
 parking_lot = "0.12.1"
 rayon = "1.8.0"
+sled = { version = "0.34.7", features = ["default", "compression"] }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "v5"] }
 zerocopy = "0.7"
 zerocopy-derive = "0.7"

@@ -1,19 +1,26 @@
 #![allow(unused)]
 
 use std::{
-    io::{BufWriter, Read, Write, Cursor, Seek, SeekFrom},
+    any::type_name,
+    collections::BTreeMap,
+    fs::File,
+    io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
+    path::Path,
     slice::IterMut,
+    str::FromStr,
     sync::{
         atomic::{AtomicBool, AtomicI8, Ordering},
         mpsc, Arc,
-    }, str::FromStr,
+    },
 };
 
 use parking_lot::RwLock;
 use uuid::Uuid;
 use zerocopy::{AsBytes, FromBytes, FromZeroes, Unaligned};
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
+
+use crate::Prop;
 
 pub trait Exchangable: FromZeroes + FromBytes + AsBytes + Unaligned {}
 impl<T> Exchangable for T where T: FromZeroes + FromBytes + AsBytes + Unaligned {}
@@ -27,9 +34,13 @@ mod op {
     // Update an exist key-value pair.
     pub const UPDATE: Operate = 0b01;
 
+    // Merge a value. Atom do not include the delta funtion.
+    // pub const MERGE: Operate = 0b10;
+
     // Delete a value.
-    pub const DELETE: Operate = 0b10;
+    pub const DELETE: Operate = 0b11;
 }
+
 #[derive(AsBytes, FromBytes, FromZeroes, Unaligned)]
 #[repr(packed)]
 pub struct Atom<K, V> {
@@ -38,7 +49,7 @@ pub struct Atom<K, V> {
     value: V,
 }
 impl<K, V> Atom<K, V> {
-    pub fn new(op: op::Operate, key: K, value: V) -> Self {
+    pub fn new<P>(op: op::Operate, key: K, value: V) -> Self {
         Atom { op, key, value }
     }
 }
@@ -95,30 +106,34 @@ where
 
 pub const NAMESPACE_ATOM: Uuid = Uuid::nil();
 
-pub struct AtomBeam<IO>
+pub struct Binlog<K, V, D = ()>
 where
-    IO: Write + Read + Seek,
+    K: Ord + Copy,
+    V: Clone + Default,
 {
-    prop_uuid: Uuid, // the unique id for this type beam.
-    inner: IO,
+    io: File,
+    prop: Prop<K, V, D>,
 }
 
-impl<IO> AtomBeam<IO>
+impl<K, V, D> Binlog<K, V, D>
 where
-    IO: Write + Read + Seek,
+    K: Ord + Copy,
+    V: Clone + Default,
 {
-    pub fn new<T: Exchangable>(mut io: IO) -> AtomBeam<IO> {
-        let type_name = std::any::type_name::<T>().to_string();
-        let uuid = Uuid::new_v5(&NAMESPACE_ATOM, type_name.as_bytes());
-        io.seek(SeekFrom::Start(0));
-        io.write(type_name.as_bytes());
-        Self {
-            prop_uuid: uuid,
-            inner: io,
-        }
+    pub fn new(path: String, prop_name: String) -> Result<Self, sled::Error> {
+        let file_path = Path::new::<String>(format!("{}/{}.binlog", path, prop_name));
+        let file = File::options()
+            .create(true)
+            .append(true)
+            .truncate(false)
+            .write(true)
+            .open(file_path)?;
+
+        Ok(Binlog {
+            io: file,
+            prop: Prop::<K,V,D>::new(),
+        })
     }
-    // TODO! Add read method here
-    // and manage more than one prop.
 }
 
 mod test {
