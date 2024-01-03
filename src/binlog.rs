@@ -3,7 +3,7 @@
 use std::{
     any::type_name,
     collections::BTreeMap,
-    fs::File,
+    fs::{self, File},
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
     path::Path,
@@ -121,19 +121,41 @@ where
     V: Clone + Default,
 {
     pub fn new(path: String, prop_name: String) -> Result<Self, sled::Error> {
-        let file_path = Path::new::<String>(format!("{}/{}.binlog", path, prop_name));
-        let file = File::options()
-            .create(true)
-            .append(true)
-            .truncate(false)
-            .write(true)
-            .open(file_path)?;
+        let p = format!("{}/{}.binlog", path, prop_name);
+        let file_path = Path::new::<String>(&p);
+        let file = match fs::metadata(file_path) {
+            Ok(_) => {
+                let mut file = File::options()
+                    .truncate(false)
+                    .write(true)
+                    .open(file_path)?;
+                let mut uuid = [0u8; 16];
+                file.read_exact(&mut uuid)?;
+                assert_eq!(
+                    Uuid::from_bytes(uuid),
+                    Uuid::new_v5(&NAMESPACE_ATOM, prop_name.as_bytes()),
+                );
+                file
+            }
+            Err(_) => {
+                let mut file = File::options()
+                    .append(true)
+                    .create(true)
+                    .write(true)
+                    .open(file_path)?;
+
+                let uuid = Uuid::new_v5(&NAMESPACE_ATOM, prop_name.as_bytes());
+                file.write_all(uuid.as_bytes());
+                file
+            }
+        };
 
         Ok(Binlog {
             io: file,
-            prop: Prop::<K,V,D>::new(),
+            prop: Prop::<K, V, D>::new(),
         })
     }
+
 }
 
 mod test {
