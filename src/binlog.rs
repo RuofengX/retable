@@ -128,7 +128,6 @@ where
 }
 
 mod test {
-    use std::io::Seek;
 
     #[test]
     fn test_atom() {
@@ -155,6 +154,7 @@ mod test {
         use std::io::Read;
         use tempfile::tempdir;
         use zerocopy::AsBytes;
+        use std::io::Seek;
 
         let ctx = zmq::Context::new();
         let dir = tempdir().unwrap();
