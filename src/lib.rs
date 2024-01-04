@@ -4,6 +4,7 @@
 //! like game.
 //!
 
+#[cfg(feature="binlog")]
 pub mod binlog;
 mod merge;
 pub mod prop;
