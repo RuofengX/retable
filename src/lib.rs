@@ -4,7 +4,7 @@
 //! like game.
 //!
 
-mod binlog;
+pub mod binlog;
 mod merge;
 pub mod prop;
 mod slots;

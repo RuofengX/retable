@@ -23,6 +23,7 @@ zerocopy-derive = "0.7"
 
 [dev-dependencies]
 criterion = "0.5.1"
+tempfile = "3.9.0"
 
 [[bench]]
 name = "prop"
