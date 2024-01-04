@@ -13,7 +13,7 @@ use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
 pub trait Exchangable: FromZeroes + FromBytes + AsBytes {}
 impl<T> Exchangable for T where T: FromZeroes + FromBytes + AsBytes {}
 
-mod op {
+pub mod op {
     pub type Operate = u8;
 
     // Create a key-value pair which does not exist before.
