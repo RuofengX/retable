@@ -130,11 +130,12 @@ where
     K: Ord + Copy + Exchangable,
     V: Clone + Default + Exchangable,
 {
-    pub fn new(path: String, prop_name: String) -> Result<Self, sled::Error> {
-        let p = format!("{}/{}.binlog", path, prop_name);
-        let file_path = Path::new::<String>(&p);
+    pub fn new(folder_path: &Path, prop_name: String) -> Result<Self, sled::Error> {
+        let mut file_path = folder_path.join::<String>(prop_name.clone());
+        file_path.set_extension("binlog");
+        // let p = format!("{}/{}.binlog", path, prop_name);
         let mut atom_len: u32 = 0;
-        let file = match fs::metadata(file_path) {
+        let file = match fs::metadata(&file_path) {
             Ok(_) => {
                 let mut file = File::options()
                     .append(true)
@@ -279,11 +280,7 @@ mod test {
         use std::io::Read;
 
         let dir = tempfile::TempDir::new().unwrap();
-        let log = Binlog::<u64, [u8; 4]>::new(
-            dir.path().to_str().unwrap().to_string(),
-            "test".to_string(),
-        )
-        .unwrap();
+        let log = Binlog::<u64, [u8; 4]>::new(dir.path(), "test".to_string()).unwrap();
 
         log.commit(Atom::new(op::CREATE, 1, [1, 2, 3, 4]));
         log.flush();
