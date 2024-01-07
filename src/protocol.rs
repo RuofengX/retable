@@ -31,7 +31,7 @@ pub trait Atomic: AsBytes + FromBytes + FromZeroes + Sized {
     /// # Safety
     /// * Assume that the key does exist in self before.
     /// * No binlog save caller to zmq.
-    unsafe fn update_unchecked(&self, key: &Self::K) -> Self::V;
+    unsafe fn update_unchecked(&self, key: &Self::K, value: &Self::V) -> Self::V;
 
     /// Modify a existed entry with a delta.
     ///
@@ -49,10 +49,12 @@ pub trait Atomic: AsBytes + FromBytes + FromZeroes + Sized {
     /// * No binlog save caller to zmq.
     unsafe fn delete_unchecked(&self, key: &Self::K) -> Self::V;
 
+    #[inline]
     fn name() -> &'static str {
         std::any::type_name::<Self>()
     }
 
+    #[inline]
     fn zmq_endpoint() -> String {
         format!("inproc://atom/archive/{}", std::any::type_name::<Self>())
     }
@@ -93,7 +95,8 @@ pub trait Atomic: AsBytes + FromBytes + FromZeroes + Sized {
     /// Return None if the key does not exist before.
     fn set(&self, key: &Self::K, value: &Self::V) -> Option<Self::V> {
         if self.contains_key(key) {
-            unsafe { Some(self.update_unchecked(key)) }
+            // TODO: 给所有的unsafe块添加所有的zmq操作
+            unsafe { Some(self.update_unchecked(key, value)) }
         } else {
             unsafe {
                 self.create_unchecked(key, value);
@@ -137,7 +140,7 @@ pub trait Atomic: AsBytes + FromBytes + FromZeroes + Sized {
                     rtn.create_unchecked(&k, &v);
                 },
                 UPDATE => unsafe {
-                    rtn.update_unchecked(&k);
+                    rtn.update_unchecked(&k, &v);
                 },
                 MERGE => unsafe {
                     rtn.merge_unchecked(&k, &d);
@@ -175,7 +178,7 @@ pub struct Atom<K, V, D> {
     op: OperationHint,
     key: K,
     value: V,
-    delta: D,
+    delta: D, //TODO: 这里得加None占位符，或者用Union，看看zerocopy怎么处理Union的
 }
 impl<K, V, D> Atom<K, V, D> {
     pub const fn len(&self) -> usize {
