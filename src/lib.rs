@@ -4,11 +4,6 @@
 //! like game.
 //!
 
-#[cfg(feature="binlog")]
-pub mod binlog;
 mod merge;
-pub mod prop;
 mod slots;
-mod datalayer;
-
-pub use prop::Prop;
+pub mod protocol;
