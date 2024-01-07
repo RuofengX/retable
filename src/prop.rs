@@ -1,22 +1,26 @@
+use std::fs::File;
+use std::path::Path;
 use std::{collections::BTreeMap, sync::Arc};
 
+use crate::binlog::{Atom, Exchangable, self};
 use crate::merge::MergeFn;
 use crate::slots::Slots;
 use parking_lot::RwLock;
+use zerocopy::FromBytes;
 
-struct Dense<K, V> {
-    slots: Slots<V>,
-    index: BTreeMap<K, usize>, // the value in index must in slots' bounds
+pub(crate) struct Dense<K, V> {
+    pub slots: Slots<V>,
+    pub index: BTreeMap<K, usize>, // the value in index must in slots' bounds
 }
 impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
-    fn with_capacity(cap: usize) -> Self {
+    pub fn with_capacity(cap: usize) -> Self {
         Dense {
             slots: Slots::with_capacity(cap),
             index: BTreeMap::new(),
         }
     }
 
-    fn get(&self, key: &K) -> Option<V> {
+    pub fn get(&self, key: &K) -> Option<V> {
         if let Some(index) = self.index.get(key) {
             unsafe { self.slots.read(*index) }
         } else {
@@ -24,14 +28,14 @@ impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
         }
     }
 
-    fn set(&mut self, key: &K, value: V) -> Option<V> {
+    pub fn set(&mut self, key: &K, value: &V) -> Option<V> {
         if let Some(index) = self.index.get(key) {
             // already exists
             // swap the value
-            unsafe { self.slots.swap(*index, value) }
+            unsafe { self.slots.swap(*index, *value) }
         } else {
             // not exists
-            let index = self.slots.create(value);
+            let index = self.slots.create(*value);
             self.index.insert(*key, index);
             None
         }
@@ -39,7 +43,7 @@ impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
 
     /// Nothing happens if the key does not exist.
     ///
-    fn modify_with<F>(&self, key: &K, f: F)
+    pub fn modify_with<F>(&self, key: &K, f: F)
     where
         F: FnOnce(Option<&mut V>),
     {
@@ -49,7 +53,7 @@ impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
         }
     }
 
-    fn remove(&mut self, key: &K) -> Option<V> {
+    pub fn remove(&mut self, key: &K) -> Option<V> {
         if let Some(index) = self.index.remove(key) {
             // exists
             unsafe { self.slots.take(index) }
@@ -69,22 +73,67 @@ impl<K: Ord + Copy, V: Clone + Default> Dense<K, V> {
 /// the other is cell lock(like row lock in mysql).
 pub struct Prop<K, V, D = ()>
 where
-    K: Ord + Copy,
-    V: Clone + Default,
+    K: Ord + Copy + Exchangable,
+    V: Clone + Default + Exchangable,
+    D: Exchangable,
 {
+    #[cfg(feature="binlog")]
+    binlog: binlog::AtomArchive<K,V,D>,
+    #[cfg(feature="binlog")]
+    ctx: zmq::Context,
+
     data: RwLock<Dense<K, V>>,
     merge_method: Arc<dyn MergeFn<V, D>>,
 }
 
 impl<K, V, D> Prop<K, V, D>
 where
-    K: Ord + Copy,
-    V: Clone + Default,
+    K: Ord + Copy + Exchangable,
+    V: Clone + Default + Exchangable,
+    D: Exchangable,
+{
+    #[cfg(feature="binlog")]
+    pub fn from_archive(folder_path: &Path) -> Self{
+        let ctx = zmq::Context::new();
+
+        let name = Atom::<K, V, D>::name();
+        let path = folder_path.join(name);
+
+        let file = File::options()
+            .create(false)
+            .append(true)
+            .write(true)
+            .read(true)
+            .open(path)
+            .expect("Bad Archive.");
+
+        let ctx = &zmq::Context::new();
+        let binlog = binlog::AtomArchive::<K,V,D>::new(&ctx, folder_path).unwrap();
+
+
+        todo!()
+
+    }
+}
+impl<K, V, D> Prop<K, V, D>
+where
+    K: Ord + Copy + Exchangable,
+    V: Clone + Default + Exchangable,
+    D: Exchangable,
 {
     /// Create a new prop
     ///
     /// a size of 4096 pre-allocation will be made.
+    #[cfg(not(feature="binlog"))]
     pub fn new() -> Self {
+        Prop {
+            data: RwLock::new(Dense::with_capacity(4096)),
+            merge_method: Arc::new(|_old, _delta| false),
+        }
+    }
+    #[cfg(feature="binlog")]
+    pub fn new() -> Self {
+        todo!()
         Prop {
             data: RwLock::new(Dense::with_capacity(4096)),
             merge_method: Arc::new(|_old, _delta| false),
@@ -93,7 +142,16 @@ where
 
     /// Create a new prop,
     /// with a merge function.
+    #[cfg(not(feature="binlog"))]
     pub fn with_merge(merge_method: impl MergeFn<V, D> + 'static) -> Self {
+        Prop {
+            data: RwLock::new(Dense::with_capacity(4096)),
+            merge_method: Arc::new(merge_method),
+        }
+    }
+    #[cfg(feature="binlog")]
+    pub fn with_merge(merge_method: impl MergeFn<V, D> + 'static) -> Self {
+        todo!()
         Prop {
             data: RwLock::new(Dense::with_capacity(4096)),
             merge_method: Arc::new(merge_method),

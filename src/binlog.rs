@@ -1,14 +1,14 @@
 use std::{
-    fs::{self, File},
-    io::{Error, Write},
+    fs::File,
+    io::{Error, Read, Write},
     marker::PhantomData,
     path::Path,
-    thread::{self, JoinHandle},
-    time::Duration,
 };
 
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
+
+use crate::{prop::Dense, Prop, merge::MergeFn};
 
 pub trait Exchangable: FromZeroes + FromBytes + AsBytes {}
 impl<T> Exchangable for T where T: FromZeroes + FromBytes + AsBytes {}
@@ -23,7 +23,7 @@ pub mod op {
     pub const UPDATE: Operate = 0b01;
 
     // Merge a value. Atom do not include the delta funtion.
-    pub const MERGE: Operate = 0b10;
+    pub const MODIFY: Operate = 0b10;
 
     // Delete a value.
     pub const DELETE: Operate = 0b11;
@@ -76,9 +76,9 @@ where
 }
 impl<K, V, D> AtomArchive<K, V, D>
 where
-    K: Exchangable + Send + Sync + 'static,
-    V: Exchangable + Send + Sync + 'static,
-    D: Exchangable + Send + Sync + 'static,
+    K: Ord + Copy + Exchangable,
+    V: Clone + Default + Exchangable,
+    D: Exchangable,
 {
     pub fn new(ctx: &zmq::Context, folder_path: &Path) -> Result<Self, Error> {
         let name = Atom::<K, V, D>::name();
@@ -94,7 +94,7 @@ where
 
         let socket = ctx.socket(zmq::SocketType::PULL).unwrap();
         socket
-            .bind(format!("inproc://atom.archive/{}", Atom::<K, V, D>::name()).as_str())
+            .bind(format!("inproc://atom/archive/{}", Atom::<K, V, D>::name()).as_str())
             .unwrap();
         Ok(Self {
             socket,
@@ -105,6 +105,38 @@ where
     pub fn endpoint(&self) -> String {
         format!("inproc://atom.archive/{}", Atom::<K, V, D>::name())
     }
+    pub fn read_all<F>(&mut self, modify_f: F) -> Dense<K, V> 
+    where
+        F: FnOnce(Option<&mut V>),
+        {
+        let mut buf = vec![0u8; Atom::<K, V, D>::len()];
+
+        // let len = self.file.metadata().unwrap().len() as f64 / Atom::<K, V, D>::len() as f64;
+        let mut rtn = Dense::<K, V>::with_capacity(1024);
+
+        while let Ok(_) = self.file.read_exact(&mut buf) {
+            let atom = Atom::<K,V,D>::ref_from(&buf).unwrap();
+            match atom.op{
+                op::CREATE=>{
+                    let a = rtn.slots.create(atom.value);
+                    rtn.index.insert(atom.key, a).unwrap();
+                },
+                op::DELETE=>{
+                    // 重新思考每个数据层级的关系
+                    rtn.remove(&atom.key);
+                },
+                op::MODIFY=>{rtn.modify_with(&atom.key, modify_f);},
+                op::UPDATE=>{rtn.set(key, value)}
+
+                todo!()
+
+            }
+            rtn.set(Atom::<K, V, D>::read_from(&buf).unwrap());
+        };
+        rtn
+
+    }
+
     pub fn pull(&mut self) -> usize {
         let mut atom_buf = Atom::<K, V, D>::new_zeroed();
         let mut count = 0;
@@ -117,13 +149,6 @@ where
         }
         self.file.flush().unwrap();
         count
-    }
-
-    pub fn run_forever(mut self) -> JoinHandle<()> {
-        thread::spawn(move || loop {
-            self.pull();
-            thread::sleep(Duration::from_millis(1000));
-        })
     }
 }
 
@@ -152,9 +177,9 @@ mod test {
         use super::Atom;
         use super::AtomArchive;
         use std::io::Read;
+        use std::io::Seek;
         use tempfile::tempdir;
         use zerocopy::AsBytes;
-        use std::io::Seek;
 
         let ctx = zmq::Context::new();
         let dir = tempdir().unwrap();
