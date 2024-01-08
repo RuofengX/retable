@@ -231,6 +231,7 @@ pub trait LogWriter<K, V, D> {
 
 /// A nothing-to-do log writer.
 impl<K, V, D> LogWriter<K, V, D> for () {
+    /// Must be unblocked
     fn save_one(&self, _data: Atom<K, V, D>) {}
 }
 
