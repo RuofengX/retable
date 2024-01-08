@@ -32,4 +32,4 @@ tempfile = "3.9.0"
 
 [features]
 default = []
-binlog = []
+persist = []

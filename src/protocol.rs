@@ -5,7 +5,10 @@ pub trait MergeAssign<D> {
     fn merge(&mut self, delta: D);
 }
 
-pub trait Atomic: AsBytes + FromBytes + FromZeroes + Sized {
+pub trait Atomic<P = ()>: AsBytes + FromBytes + FromZeroes + Sized
+where
+    P: for<'a> Persistence<'a, Self::K, Self::V, Self::D>,
+{
     /// The key type. For index usage.
     type K: Ord + Copy + AsBytes + FromBytes + FromZeroes;
     /// The value type.
@@ -54,52 +57,73 @@ pub trait Atomic: AsBytes + FromBytes + FromZeroes + Sized {
         std::any::type_name::<Self>()
     }
 
-    #[inline]
-    fn zmq_endpoint() -> String {
-        format!("inproc://atom/archive/{}", std::any::type_name::<Self>())
-    }
-
-    /// Return the beans of zmq::Context.
-    fn zmq_ctx(&self) -> &zmq::Context;
-
-    /// Return the beans of zmq::Socket.
-    fn zmq_sock(&self) -> &zmq::Socket;
-
-    /// Return the mutable beans of zmq::Socket.
-    fn zmq_sock_mut(&mut self) -> &mut zmq::Socket;
-
-    fn zmq_init(&mut self) -> Result<(), zmq::Error> {
-        *self.zmq_sock_mut() = self.zmq_ctx().socket(zmq::PULL)?;
-        self.zmq_sock_mut().bind(&Self::zmq_endpoint())?;
-        Ok(())
-    }
-
-    fn zmq_send(&self, msg: &Atom<Self::K, Self::V, Self::D>) {
-        self.zmq_sock().send(msg.as_bytes(), 0).unwrap();
-    }
-
-    fn zmq_recv(&self) -> Atom<Self::K, Self::V, Self::D> {
-        let mut buf = Atom::<Self::K, Self::V, Self::D>::new_zeroed();
-        self.zmq_sock()
-            .recv_into(buf.as_bytes_mut(), zmq::DONTWAIT)
-            .unwrap();
-        buf
-    }
-
     /// Check if the key exists.
     fn contains_key(&self, key: &Self::K) -> bool;
+
+    /// Get persistence handler
+    #[cfg(feature = "persist")]
+    fn get_persist(&self) -> &P;
 
     /// Ensure an entry is created with the given value.
     ///
     /// Return an old value if overwrited.
     /// Return None if the key does not exist before.
-    fn set(&self, key: &Self::K, value: &Self::V) -> Option<Self::V> {
-        if self.contains_key(key) {
-            // TODO: 给所有的unsafe块添加所有的zmq操作
-            unsafe { Some(self.update_unchecked(key, value)) }
+    fn set(&self, key: &Self::K, value: Option<&Self::V>) -> Option<Self::V> {
+        if let Some(value) = value {
+            // modify the entry
+            if self.contains_key(key) {
+                // old value exists, swap old and new, return old
+
+                // handle persist
+                #[cfg(feature = "persist")]
+                {
+                    self.get_persist().save_one(Atom::new(
+                        UPDATE,
+                        *key,
+                        value.clone(),
+                        Self::D::new_zeroed(),
+                    ));
+                }
+
+                unsafe { Some(self.update_unchecked(key, value)) }
+            } else {
+                // old value not exists, create new, return none
+
+                // handle persist
+                #[cfg(feature = "persist")]
+                {
+                    self.get_persist().save_one(Atom::new(
+                        CREATE,
+                        *key,
+                        value.clone(),
+                        Self::D::new_zeroed(),
+                    ));
+                }
+
+                unsafe {
+                    self.create_unchecked(key, value);
+                    None
+                }
+            }
         } else {
-            unsafe {
-                self.create_unchecked(key, value);
+            // delete the entry
+
+            // handle persist
+            #[cfg(feature = "persist")]
+            {
+                self.get_persist().save_one(Atom::new(
+                    DELETE,
+                    *key,
+                    Self::V::new_zeroed(),
+                    Self::D::new_zeroed(),
+                ));
+            }
+
+            if self.contains_key(key) {
+                // old value exists, take old
+                unsafe { Some(self.delete_unchecked(key)) }
+            } else {
+                // old value not exists, return none
                 None
             }
         }
@@ -114,21 +138,21 @@ pub trait Atomic: AsBytes + FromBytes + FromZeroes + Sized {
         }
     }
 
-    /// Ensure remove an entry.
-    ///
-    /// Return a value if existed.
-    /// Return None if the key does not exist before,
-    /// also that means nothing change after this op.
-    fn remove(&self, key: &Self::K) -> Option<Self::V> {
-        if self.contains_key(key) {
-            unsafe { Some(self.delete_unchecked(key)) }
-        } else {
-            None
+    fn merge(&self, key: &Self::K, delta: &Self::D){
+        if self.contains_key(key){
+            // handle persist
+            #[cfg(feature = "persist")]
+            {
+                self.get_persist().save_one(Atom::new(
+                    MERGE,
+                    *key,
+                    Self::V::new_zeroed(),
+                    delta.clone(),
+                ));
+            }
+            unsafe{ self.merge_unchecked(key, delta)}
         }
     }
-
-    /// Save all the key-value pairs into many Atom with minimal entropy.
-    fn iter(self) -> impl Iterator<Item = Atom<Self::K, Self::V, Self::D>>;
 
     /// load from an Iterator of atoms.
     fn load(from: impl Iterator<Item = Atom<Self::K, Self::V, Self::D>>) -> Self {
@@ -178,7 +202,7 @@ pub struct Atom<K, V, D> {
     op: OperationHint,
     key: K,
     value: V,
-    delta: D, //TODO: 这里得加None占位符，或者用Union，看看zerocopy怎么处理Union的
+    delta: D,
 }
 impl<K, V, D> Atom<K, V, D> {
     pub const fn len(&self) -> usize {
@@ -192,8 +216,19 @@ impl<K, V, D> Atom<K, V, D> {
             delta,
         }
     }
+
     #[inline]
     pub fn into_align(self) -> (OperationHint, K, V, D) {
         (self.op, self.key, self.value, self.delta)
     }
+}
+
+pub trait Persistence<'a, K, V, D>
+where
+    K: 'a,
+    V: 'a,
+    D: 'a,
+{
+    fn save_one(&self, data: Atom<K, V, D>);
+    fn load_all(&'a self) -> impl Iterator<Item = &'a Atom<K, V, D>>;
 }
