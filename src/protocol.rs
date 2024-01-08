@@ -224,6 +224,7 @@ impl<K, V, D> Atom<K, V, D> {
     }
 }
 
+/// Wrapper for IO object
 pub trait LogWriter<K, V, D> {
     fn save_one(&self, data: Atom<K, V, D>);
 }
@@ -233,11 +234,12 @@ impl<K, V, D> LogWriter<K, V, D> for () {
     fn save_one(&self, _data: Atom<K, V, D>) {}
 }
 
-pub trait LogReader<'a, K, V, D>
+pub trait LogReader<'a, K, V, D>: 
 where
     K: 'a,
     V: 'a,
     D: 'a,
 {
-    fn load_all(&'a self) -> impl Iterator<Item = &'a Atom<K, V, D>>;
+    fn iter(&self) -> impl Iterator<Item = &'a Atom<K, V, D>>;
+    fn into_iter(&self) -> impl Iterator<Item = Atom<K, V, D>>;
 }
