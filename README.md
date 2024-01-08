@@ -1,34 +1,43 @@
 # Retable
 
-WIP, DO NOT USE
-
 A Rust library for Atomic-like double-indexed entity-attribute data structures.  
 
+This lib comes with:
++ Atom protocol, a protocol to describe the modify of the database.
++ A simple implementation of the atom protocol, using [`im`].
 
 ## Atom
 
-Atom is a way to describe a single key-value pair.
+Atom is a way to describe the modify of the database.
 
-Atom use an UUID as the global type definition.
 
-| Field Name   | Data Type | Size or MaxSize | Description                        |
-| ------------ | --------- | --------------- | ---------------------------------- |
-| Meta         | u64       | 8               |                                    |
-| PropertyName | u8        | 1 bytes         |                                    |
-| Index        | u64       | 8 bytes         | Key                                |
-| Value        |           | <=2^64 bytes    | A value to describe the attribute. |
+| Data Part | Data Type  | Field length | Description                    |
+| --------- | ---------- | ------------ | ------------------------------ |
+| Opration  | u8         | 1 byte       | Enum of four basic modify ops. |
+| Key       | K(Generic) | Zero or Any  | The type of index key.         |
+| Value     | V(Generic) | Zero or Any  | The type of storage value.     |
+| Delta     | D(Generic) | Zero or Any  | The type of modify value.      |
 
-* Endian: Little Endian, rust native.
-* Codec: Using rust [zerocopy](https://docs.rs/zerocopy/latest/zerocopy/index.html) to encode/decode.
++ Endian: Little Endian, rust native.
++ Codec: Using rust [zerocopy](https://docs.rs/zerocopy/latest/zerocopy/index.html) to encode/decode.
+
+Note that since the data struct is defined by user, there is no placeholder for empty field. In an other word, Atom use a packed layout to store the data.
+Therefore, these structs have the same memory layout:
++ Atom<u8,u16,()>
++ Atom<u8,(),u16>
++ Atom<u8,u8,u8>
++ Atom<u16,u8,()>
++ etc...
+
 
 
 ## Roadmap
 
-- [x] Basic implementation.
-- [ ] Binlog to do persistent storage.
-- [ ] Support async non-instent op.
+- [x] Freeze Atom protocol .
+- [ ] Use im asBasic implementation.
+- [ ] Support async non-block op.
 - [ ] Documentation.
-- [ ] Message queue support.
+- [ ] External Message queue support.
 - [ ] Benchmark.
 - [ ] Auto shrink inner data to make more density.
 

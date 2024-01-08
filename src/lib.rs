@@ -5,5 +5,6 @@
 //!
 
 mod merge;
-mod slots;
 pub mod protocol;
+pub mod dense;
+pub mod persist;

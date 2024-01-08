@@ -1,14 +1,17 @@
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
 
+/// Merge D into V(Self)
 pub trait MergeAssign<D> {
     fn merge(&mut self, delta: D);
 }
 
-pub trait Atomic<P = ()>: AsBytes + FromBytes + FromZeroes + Sized
-where
-    P: for<'a> Persistence<'a, Self::K, Self::V, Self::D>,
-{
+/// An empty impl of MergeAssign
+impl<T> MergeAssign<()> for T {
+    fn merge(&mut self, _delta: ()) {}
+}
+
+pub trait Atomic: Sized {
     /// The key type. For index usage.
     type K: Ord + Copy + AsBytes + FromBytes + FromZeroes;
     /// The value type.
@@ -62,7 +65,7 @@ where
 
     /// Get persistence handler
     #[cfg(feature = "persist")]
-    fn get_persist(&self) -> &P;
+    fn get_persist(&self) -> &impl LogWriter<Self::K, Self::V, Self::D>;
 
     /// Ensure an entry is created with the given value.
     ///
@@ -138,8 +141,8 @@ where
         }
     }
 
-    fn merge(&self, key: &Self::K, delta: &Self::D){
-        if self.contains_key(key){
+    fn merge(&self, key: &Self::K, delta: &Self::D) {
+        if self.contains_key(key) {
             // handle persist
             #[cfg(feature = "persist")]
             {
@@ -150,32 +153,30 @@ where
                     delta.clone(),
                 ));
             }
-            unsafe{ self.merge_unchecked(key, delta)}
+            unsafe { self.merge_unchecked(key, delta) }
         }
     }
 
     /// load from an Iterator of atoms.
-    fn load(from: impl Iterator<Item = Atom<Self::K, Self::V, Self::D>>) -> Self {
-        let rtn = Self::new_zeroed();
+    fn load(&self, from: impl Iterator<Item = Atom<Self::K, Self::V, Self::D>>) {
         from.into_iter().for_each(|atom| {
             let (op, k, v, d) = atom.into_align();
             match op {
                 CREATE => unsafe {
-                    rtn.create_unchecked(&k, &v);
+                    self.create_unchecked(&k, &v);
                 },
                 UPDATE => unsafe {
-                    rtn.update_unchecked(&k, &v);
+                    self.update_unchecked(&k, &v);
                 },
                 MERGE => unsafe {
-                    rtn.merge_unchecked(&k, &d);
+                    self.merge_unchecked(&k, &d);
                 },
                 DELETE => unsafe {
-                    rtn.delete_unchecked(&k);
+                    self.delete_unchecked(&k);
                 },
                 _ => {}
             }
         });
-        rtn
     }
 }
 
@@ -223,12 +224,20 @@ impl<K, V, D> Atom<K, V, D> {
     }
 }
 
-pub trait Persistence<'a, K, V, D>
+pub trait LogWriter<K, V, D> {
+    fn save_one(&self, data: Atom<K, V, D>);
+}
+
+/// A nothing-to-do log writer.
+impl<K, V, D> LogWriter<K, V, D> for () {
+    fn save_one(&self, _data: Atom<K, V, D>) {}
+}
+
+pub trait LogReader<'a, K, V, D>
 where
     K: 'a,
     V: 'a,
     D: 'a,
 {
-    fn save_one(&self, data: Atom<K, V, D>);
     fn load_all(&'a self) -> impl Iterator<Item = &'a Atom<K, V, D>>;
 }
