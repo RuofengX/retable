@@ -1,5 +1,5 @@
-use std::ops::AddAssign;
 use std::hash::Hash;
+use std::ops::AddAssign;
 
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
