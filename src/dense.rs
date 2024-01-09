@@ -1,11 +1,32 @@
+//! A simple double lock implementation for Atomic protocol.
+//!
+//! The name is a bit misleading, since it just use a dense
+//! vector to save datium but it allows the empty slot exists.
+//!
+//! Dense uses 2 levels of Read-Write lock to implement the atomic protocol.  
+//! 
+//! + First level lock is the 'table' lock, it protect the index, empty records
+//! and the increase of inner data vector.  
+//! + Second lock is the 'row' locks, they protect the inner cell inside the data vector.  
+//!
+//! To minimen the insertion time, the Dense allows empty slots, and use
+//! a BTreeSet to tract all those empty slots. Whenever a value is deleted,
+//! instead of drop the lock and the content, the slot would write-locked
+//! and set to None, and then the index of this empty slot would pushed
+//! into the 'empty' BTreeSet.
+//!
+//! When creating new value, the create function will first try to search
+//! whether there is an empty slot, if so, reuse the empty slot,
+//! gain the RwLock and then write the data.
+//!
+
 use parking_lot::RwLock;
 use std::collections::BTreeSet;
 use std::ops::DerefMut;
 use std::{collections::BTreeMap, marker::PhantomData};
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
-use crate::protocol::{Atom, Atomic};
-use crate::protocol::{LogWriter, MergeAssign};
+use crate::protocol::{Atom, Atomic, LogWriter, MergeAssign};
 
 struct DenseInner<K, V> {
     idx: BTreeMap<K, usize>,
@@ -89,10 +110,7 @@ where
         let mut inner = self.inner.upgradable_read();
         let &idx = inner.idx.get(key).unwrap();
         let mut buf: Option<V> = None;
-        std::mem::swap(
-            inner.data.get_unchecked(idx).write().deref_mut(),
-            &mut buf,
-        );
+        std::mem::swap(inner.data.get_unchecked(idx).write().deref_mut(), &mut buf);
         inner.with_upgraded(|inner| {
             inner.idx.remove(key);
             inner.empty.insert(idx);
