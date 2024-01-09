@@ -31,5 +31,5 @@ tempfile = "3.9.0"
 # harness = false
 
 [features]
-default = ["persist"]
+default = []
 persist = []

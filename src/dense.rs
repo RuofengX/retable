@@ -4,12 +4,12 @@ use std::ops::DerefMut;
 use std::{collections::BTreeMap, marker::PhantomData};
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
-use crate::protocol::{LogWriter, MergeAssign};
 use crate::protocol::{Atom, Atomic};
+use crate::protocol::{LogWriter, MergeAssign};
 
 struct DenseInner<K, V> {
     idx: BTreeMap<K, usize>,
-    data: Vec<RwLock<Option<V>>>, // TODO: 使用RwLock重写，减少表写锁
+    data: Vec<RwLock<Option<V>>>,
     empty: BTreeSet<usize>,
 }
 impl<K, V> Default for DenseInner<K, V> {
@@ -47,40 +47,57 @@ where
     type D = ();
 
     unsafe fn create_unchecked(&self, key: &Self::K, value: &Self::V) {
-        let mut inner = self.inner.write();
-        if let Some(empty_idx) = inner.empty.pop_first() {
-            let empty_entry = inner.data.get_unchecked_mut(empty_idx);
-            *empty_entry = Some(value.clone());
+        let mut inner = self.inner.upgradable_read();
+        if inner.empty.is_empty() {
+            inner.with_upgraded(|inner| {
+                inner.data.push(RwLock::new(Some(value.clone())));
+                inner.idx.insert(*key, inner.data.len() - 1);
+            })
         } else {
-            inner.data.push(Some(value.clone()));
-            inner.idx.insert(*key, inner.data.len() - 1);
+            let empty_idx = inner.with_upgraded(|inner| inner.empty.pop_first().unwrap());
+            *inner.data.get_unchecked(empty_idx).write() = Some(value.clone());
+            inner.with_upgraded(|inner| {
+                inner.idx.insert(*key, empty_idx);
+            });
         }
     }
 
     unsafe fn read_unchecked(&self, key: &Self::K) -> Self::V {
         let inner = self.inner.read();
         let &idx = inner.idx.get(key).unwrap();
-        inner.data.get_unchecked(idx).unwrap()
+        let rtn = inner.data.get_unchecked(idx).read().clone().unwrap();
+        rtn
     }
 
     unsafe fn update_unchecked(&self, key: &Self::K, value: &Self::V) -> Self::V {
-        let mut inner = self.inner.write();
+        let inner = self.inner.read();
         let &idx = inner.idx.get(key).unwrap();
-        let entry = inner.data.get_unchecked_mut(idx).as_mut().unwrap();
-        let mut old = Self::V::new_zeroed();
-        std::mem::swap(entry, &mut old);
-        old
+        let mut entry = inner.data.get_unchecked(idx).write();
+        let mut buf = value.clone();
+        std::mem::swap(entry.as_mut().unwrap(), &mut buf);
+        buf
     }
 
     unsafe fn merge_unchecked(&self, key: &Self::K, delta: &Self::D) {
-        let mut inner = self.inner.write();
+        let inner = self.inner.read();
         let &idx = inner.idx.get(key).unwrap();
-        let entry = inner.data.get_unchecked_mut(idx).as_mut().unwrap();
-        entry.merge(delta.clone());
+        let mut entry = inner.data.get_unchecked(idx).write();
+        entry.as_mut().unwrap().merge(delta.clone());
     }
 
     unsafe fn delete_unchecked(&self, key: &Self::K) -> Self::V {
-        todo!()
+        let mut inner = self.inner.upgradable_read();
+        let &idx = inner.idx.get(key).unwrap();
+        let mut buf: Option<V> = None;
+        std::mem::swap(
+            inner.data.get_unchecked(idx).write().deref_mut(),
+            &mut buf,
+        );
+        inner.with_upgraded(|inner| {
+            inner.idx.remove(key);
+            inner.empty.insert(idx);
+        });
+        buf.unwrap()
     }
 
     fn contains_key(&self, key: &Self::K) -> bool {
@@ -90,6 +107,7 @@ where
     /// Get persistence handler
     #[cfg(feature = "persist")]
     fn get_persist(&self) -> &impl LogWriter<Self::K, Self::V, Self::D> {
-        todo!()
+        // TODO 设计一个带缓冲区的持久化日志磁盘记录器
+        &()
     }
 }
