@@ -16,6 +16,7 @@ version = "0.7.0-alpha.4"
 crossbeam = "0.8.3"
 parking_lot = "0.12.1"
 rayon = "1.8.0"
+rustc-hash = "1.1.0"
 sled = { version = "0.34.7", features = ["default", "compression"] }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "v5"] }
 zerocopy = "0.7"
@@ -26,9 +27,9 @@ zmq = "0.10.0"
 criterion = "0.5.1"
 tempfile = "3.9.0"
 
-# [[bench]]
-# name = "prop"
-# harness = false
+[[bench]]
+name = "crud"
+harness = false
 
 [features]
 default = []

@@ -1,21 +1,28 @@
+use std::ops::AddAssign;
+use std::hash::Hash;
+
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
 
 /// Merge D into V(Self)
-pub trait MergeAssign<D> {
-    fn merge(&mut self, delta: D);
+pub trait MergeAssign {
+    type Delta;
+    fn merge(&mut self, delta: Self::Delta);
 }
 
-/// An empty impl of MergeAssign
-impl<T> MergeAssign<()> for T {
-    fn merge(&mut self, _delta: ()) {}
+/// An default impl of MergeAssign
+impl<T: AddAssign> MergeAssign for T {
+    type Delta = T;
+    fn merge(&mut self, delta: T) {
+        *self += delta
+    }
 }
 
 pub trait Atomic: Sized {
     /// The key type. For index usage.
-    type K: Ord + Copy + AsBytes + FromBytes + FromZeroes;
+    type K: Hash + Ord + Copy + AsBytes + FromBytes + FromZeroes;
     /// The value type.
-    type V: Default + Clone + MergeAssign<Self::D> + AsBytes + FromBytes + FromZeroes;
+    type V: Default + Clone + MergeAssign<Delta = Self::D> + AsBytes + FromBytes + FromZeroes;
     type D: Clone + AsBytes + FromBytes + FromZeroes;
 
     /// Create a new entry atomically.
@@ -235,7 +242,7 @@ impl<K, V, D> LogWriter<K, V, D> for () {
     fn save_one(&self, _data: Atom<K, V, D>) {}
 }
 
-pub trait LogReader<'a, K, V, D>: 
+pub trait LogReader<'a, K, V, D>
 where
     K: 'a,
     V: 'a,

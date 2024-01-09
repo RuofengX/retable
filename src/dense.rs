@@ -4,7 +4,7 @@
 //! vector to save datium but it allows the empty slot exists.
 //!
 //! Dense uses 2 levels of Read-Write lock to implement the atomic protocol.  
-//! 
+//!
 //! + First level lock is the 'table' lock, it protect the index, empty records
 //! and the increase of inner data vector.  
 //! + Second lock is the 'row' locks, they protect the inner cell inside the data vector.  
@@ -21,15 +21,17 @@
 //!
 
 use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
 use std::collections::BTreeSet;
-use std::ops::DerefMut;
-use std::{collections::BTreeMap, marker::PhantomData};
+use std::hash::Hash;
+use std::marker::PhantomData;
+use std::ops::DerefMut as _;
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 use crate::protocol::{Atom, Atomic, LogWriter, MergeAssign};
 
 struct DenseInner<K, V> {
-    idx: BTreeMap<K, usize>,
+    idx: FxHashMap<K, usize>,
     data: Vec<RwLock<Option<V>>>,
     empty: BTreeSet<usize>,
 }
@@ -56,16 +58,17 @@ impl<K, V, D> Default for Dense<K, V, D> {
     }
 }
 
-impl<K, V> Atomic for Dense<K, V, ()>
+impl<K, V, D> Atomic for Dense<K, V, D>
 where
-    K: Ord + Copy + AsBytes + FromBytes + FromZeroes,
-    V: Default + Clone + AsBytes + FromBytes + FromZeroes,
+    K: Ord + Hash + Copy + AsBytes + FromBytes + FromZeroes,
+    V: Default + Clone + AsBytes + FromBytes + FromZeroes + MergeAssign<Delta = D>,
+    D: Clone + AsBytes + FromBytes + FromZeroes,
 {
     type K = K;
 
     type V = V;
 
-    type D = ();
+    type D = D;
 
     unsafe fn create_unchecked(&self, key: &Self::K, value: &Self::V) {
         let mut inner = self.inner.upgradable_read();
