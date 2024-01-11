@@ -58,7 +58,7 @@ pub trait Atomic: Default + Sized {
 
     /// Get persistence handler
     #[cfg(feature = "persist")]
-    fn log_writer(&self) -> &impl LogWriter<Self::K, Self::V, Self::D>;
+    fn persist_hook(&self) -> &impl LogWriter<Self::K, Self::V, Self::D>;
 
     /// Ensure an entry is created with the given value.
     ///
@@ -73,7 +73,7 @@ pub trait Atomic: Default + Sized {
                 // handle persist
                 #[cfg(feature = "persist")]
                 {
-                    self.log_writer().update(key, value);
+                    self.persist_hook().update(key, value);
                 }
 
                 unsafe { Some(self.update_unchecked(key, value)) }
@@ -83,7 +83,7 @@ pub trait Atomic: Default + Sized {
                 // handle persist
                 #[cfg(feature = "persist")]
                 {
-                    self.log_writer().create(key, value);
+                    self.persist_hook().create(key, value);
                 }
 
                 unsafe {
@@ -97,7 +97,7 @@ pub trait Atomic: Default + Sized {
             // handle persist
             #[cfg(feature = "persist")]
             {
-                self.log_writer().delete(key);
+                self.persist_hook().delete(key);
             }
 
             if self.contains_key(key) {
@@ -124,7 +124,7 @@ pub trait Atomic: Default + Sized {
             // handle persist
             #[cfg(feature = "persist")]
             {
-                self.log_writer().merge(key, delta);
+                self.persist_hook().merge(key, delta);
             }
             unsafe { self.merge_unchecked(key, delta) }
         }

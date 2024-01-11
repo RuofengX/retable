@@ -127,7 +127,7 @@ where
     }
 
     #[cfg(feature="persist")]
-    fn log_writer(&self) -> &impl crate::protocol::LogWriter<Self::K, Self::V, Self::D> {
+    fn persist_hook(&self) -> &impl crate::protocol::LogWriter<Self::K, Self::V, Self::D> {
         &()
     }
 }

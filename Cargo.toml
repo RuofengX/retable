@@ -29,5 +29,5 @@ name = "crud"
 harness = false
 
 [features]
-default = ["persist"]
+default = []
 persist = []
