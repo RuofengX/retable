@@ -28,7 +28,7 @@ use std::marker::PhantomData;
 use std::ops::DerefMut as _;
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
-use crate::protocol::{Atom, Atomic, LogWriter, MergeAssign};
+use crate::protocol::{Atomic, MergeAssign};
 
 struct DenseInner<K, V> {
     idx: FxHashMap<K, usize>,
@@ -47,7 +47,7 @@ impl<K, V> Default for DenseInner<K, V> {
 
 pub struct Dense<K, V, D> {
     inner: RwLock<DenseInner<K, V>>,
-    _a: PhantomData<Atom<K, V, D>>,
+    _a: PhantomData<D>,
 }
 impl<K, V, D> Default for Dense<K, V, D> {
     fn default() -> Self {
@@ -125,10 +125,9 @@ where
         let inner = self.inner.read();
         inner.idx.contains_key(key)
     }
-    /// Get persistence handler
-    #[cfg(feature = "persist")]
-    fn get_persist(&self) -> &impl LogWriter<Self::K, Self::V, Self::D> {
-        // TODO 设计一个带缓冲区的持久化日志磁盘记录器
+
+    #[cfg(feature="persist")]
+    fn log_writer(&self) -> &impl crate::protocol::LogWriter<Self::K, Self::V, Self::D> {
         &()
     }
 }

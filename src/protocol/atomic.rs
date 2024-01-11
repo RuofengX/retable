@@ -1,24 +1,10 @@
 use std::hash::Hash;
-use std::ops::AddAssign;
 
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
-use zerocopy_derive::{AsBytes, FromBytes, FromZeroes, Unaligned};
 
-/// Merge D into V(Self)
-pub trait MergeAssign {
-    type Delta;
-    fn merge(&mut self, delta: Self::Delta);
-}
+use super::MergeAssign;
 
-/// An default impl of MergeAssign
-impl<T: AddAssign> MergeAssign for T {
-    type Delta = T;
-    fn merge(&mut self, delta: T) {
-        *self += delta
-    }
-}
-
-pub trait Atomic: Sized {
+pub trait Atomic: Default + Sized {
     /// The key type. For index usage.
     type K: Hash + Ord + Copy + AsBytes + FromBytes + FromZeroes;
     /// The value type.
@@ -72,7 +58,7 @@ pub trait Atomic: Sized {
 
     /// Get persistence handler
     #[cfg(feature = "persist")]
-    fn get_persist(&self) -> &impl LogWriter<Self::K, Self::V, Self::D>;
+    fn log_writer(&self) -> &impl LogWriter<Self::K, Self::V, Self::D>;
 
     /// Ensure an entry is created with the given value.
     ///
@@ -87,12 +73,7 @@ pub trait Atomic: Sized {
                 // handle persist
                 #[cfg(feature = "persist")]
                 {
-                    self.get_persist().save_one(Atom::new(
-                        UPDATE,
-                        *key,
-                        value.clone(),
-                        Self::D::new_zeroed(),
-                    ));
+                    self.log_writer().update(key, value);
                 }
 
                 unsafe { Some(self.update_unchecked(key, value)) }
@@ -102,12 +83,7 @@ pub trait Atomic: Sized {
                 // handle persist
                 #[cfg(feature = "persist")]
                 {
-                    self.get_persist().save_one(Atom::new(
-                        CREATE,
-                        *key,
-                        value.clone(),
-                        Self::D::new_zeroed(),
-                    ));
+                    self.log_writer().create(key, value);
                 }
 
                 unsafe {
@@ -121,12 +97,7 @@ pub trait Atomic: Sized {
             // handle persist
             #[cfg(feature = "persist")]
             {
-                self.get_persist().save_one(Atom::new(
-                    DELETE,
-                    *key,
-                    Self::V::new_zeroed(),
-                    Self::D::new_zeroed(),
-                ));
+                self.log_writer().delete(key);
             }
 
             if self.contains_key(key) {
@@ -153,101 +124,39 @@ pub trait Atomic: Sized {
             // handle persist
             #[cfg(feature = "persist")]
             {
-                self.get_persist().save_one(Atom::new(
-                    MERGE,
-                    *key,
-                    Self::V::new_zeroed(),
-                    delta.clone(),
-                ));
+                self.log_writer().merge(key, delta);
             }
             unsafe { self.merge_unchecked(key, delta) }
         }
     }
 
     /// load from an Iterator of atoms.
-    fn load(&self, from: impl Iterator<Item = Atom<Self::K, Self::V, Self::D>>) {
-        from.into_iter().for_each(|atom| {
-            let (op, k, v, d) = atom.into_align();
-            match op {
-                CREATE => unsafe {
-                    self.create_unchecked(&k, &v);
-                },
-                UPDATE => unsafe {
-                    self.update_unchecked(&k, &v);
-                },
-                MERGE => unsafe {
-                    self.merge_unchecked(&k, &d);
-                },
-                DELETE => unsafe {
-                    self.delete_unchecked(&k);
-                },
-                _ => {}
-            }
+    fn load(from: impl Iterator<Item = (Self::K, Self::V)>) -> Self {
+        let rtn = Self::default();
+        from.into_iter().for_each(|(k, v)| {
+            unsafe {
+                rtn.create_unchecked(&k, &v);
+            };
         });
-    }
-}
-
-/// Operation hint for atomic trait.
-///
-/// Atomic storage protocol only record 4 ops below.
-pub type OperationHint = u8;
-
-// Create a key-value pair which does not exist before.
-pub const CREATE: OperationHint = 0;
-
-// Update an exist key-value pair.
-pub const UPDATE: OperationHint = 1;
-
-// Merge a value. Atom do not include the delta funtion.
-pub const MERGE: OperationHint = 2;
-
-// Delete a value.
-pub const DELETE: OperationHint = 3;
-
-#[derive(Debug, AsBytes, FromBytes, FromZeroes, Unaligned)]
-#[repr(packed)]
-pub struct Atom<K, V, D> {
-    op: OperationHint,
-    key: K,
-    value: V,
-    delta: D,
-}
-impl<K, V, D> Atom<K, V, D> {
-    pub const fn len(&self) -> usize {
-        std::mem::size_of::<Self>()
-    }
-    pub fn new(op: OperationHint, key: K, value: V, delta: D) -> Self {
-        Atom {
-            op,
-            key,
-            value,
-            delta,
-        }
-    }
-
-    #[inline]
-    pub fn into_align(self) -> (OperationHint, K, V, D) {
-        (self.op, self.key, self.value, self.delta)
+        rtn
     }
 }
 
 /// Wrapper for IO object
 pub trait LogWriter<K, V, D> {
-    fn save_one(&self, data: Atom<K, V, D>);
+    fn create(&self, key: &K, value: &V);
+    fn update(&self, key: &K, value: &V);
+    fn merge(&self, key: &K, delta: &D);
+    fn delete(&self, key: &K);
 }
 
 /// A nothing-to-do log writer.
+/// Every operation must be unblocked
 impl<K, V, D> LogWriter<K, V, D> for () {
-    /// Must be unblocked
-    fn save_one(&self, _data: Atom<K, V, D>) {}
+    fn create(&self, _key: &K, _value: &V) {}
+    fn update(&self, _key: &K, _value: &V) {}
+    fn merge(&self, _key: &K, _delta: &D) {}
+    fn delete(&self, _key: &K) {}
 }
 
-pub trait LogReader<'a, K, V, D>
-where
-    K: 'a,
-    V: 'a,
-    D: 'a,
-{
-    fn iter(&self) -> impl Iterator<Item = &'a Atom<K, V, D>>;
-    fn into_iter(&self) -> impl Iterator<Item = Atom<K, V, D>>;
-}
+pub trait LogReader<K, V>: Iterator<Item = (K, V)> {}
